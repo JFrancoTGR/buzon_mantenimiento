@@ -1,0 +1,104 @@
+.auth-page h1 {
+  font-size: 1.65rem;
+}
+
+.password-requirements {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 20px;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.registration-result,
+.verification-state {
+  text-align: center;
+}
+
+.registration-result__icon,
+.verification-state__icon {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  margin: 0 auto var(--space-5);
+  place-items: center;
+  border: 1px solid var(--success);
+  background: var(--success-soft);
+  color: var(--success);
+  font-size: 1.45rem;
+  font-weight: 800;
+}
+
+.verification-state__icon--error {
+  border-color: var(--error);
+  background: var(--error-soft);
+  color: var(--error);
+}
+
+.registration-result__email {
+  margin: var(--space-3) 0;
+  color: var(--text-primary);
+  font-weight: 750;
+  word-break: break-word;
+}
+
+.registration-result__actions,
+.verification-state__actions {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
+
+.registration-result__actions .button--text {
+  width: auto;
+  justify-self: center;
+}
+
+.verification-state__spinner {
+  width: 42px;
+  height: 42px;
+  margin: 0 auto var(--space-5);
+  border: 3px solid var(--border-soft);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: auth-spin 800ms linear infinite;
+}
+
+.placeholder-user {
+  display: grid;
+  gap: 4px;
+  margin: var(--space-5) 0;
+  padding: 14px 16px;
+  border: 1px solid var(--border-soft);
+  background: var(--surface-muted);
+}
+
+.placeholder-user span {
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+}
+
+@keyframes auth-spin {
+  to { transform: rotate(360deg); }
+}
+
+.swal2-popup.auth-alert,
+.swal2-popup.app-alert {
+  border: 1px solid var(--border-soft);
+  border-radius: 0;
+  font-family: 'Archivo', Arial, sans-serif;
+  box-shadow: var(--shadow-md);
+}
+
+.swal2-confirm.app-alert__confirm {
+  border-radius: 0;
+  background: var(--primary) !important;
+  font-family: inherit;
+  font-weight: 700;
+}
+
+.swal2-confirm.app-alert__confirm:hover {
+  background: var(--primary-dark) !important;
+}

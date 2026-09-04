@@ -1,0 +1,13 @@
+{
+  "name": "estrategia-urbana/plataforma-mantenimiento",
+  "description": "Plataforma de gestión de reportes de mantenimiento",
+  "type": "project",
+  "require": {
+    "php": ">=8.1",
+    "phpmailer/phpmailer": "^7.1"
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "sort-packages": true
+  }
+}

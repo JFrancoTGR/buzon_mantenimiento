@@ -1,0 +1,95 @@
+.status-badge,
+.priority-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 27px;
+  padding: 4px 9px;
+  border: 1px solid currentColor;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: 0.73rem;
+  font-weight: 720;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.status-badge[data-status='new'] {
+  border-color: #b8c4ca;
+  background: #edf2f4;
+  color: #455a64;
+}
+
+.status-badge[data-status='under_review'] {
+  border-color: #9fc6e2;
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+.status-badge[data-status='quotation_pending'] {
+  border-color: #e6c977;
+  background: var(--warning-soft);
+  color: #7d5a00;
+}
+
+.status-badge[data-status='authorization_pending'] {
+  border-color: #efc878;
+  background: #fff2d6;
+  color: #7a4700;
+}
+
+.status-badge[data-status='changes_requested'] {
+  border-color: #e3b15c;
+  background: #fff0d1;
+  color: #8a5100;
+}
+
+.status-badge[data-status='authorized'],
+.status-badge[data-status='completed'] {
+  border-color: #9acbad;
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.status-badge[data-status='in_progress'] {
+  border-color: #9db2c7;
+  background: #edf3f8;
+  color: #345b82;
+}
+
+.status-badge[data-status='closed'],
+.status-badge[data-status='cancelled'] {
+  border-color: #c8cdd1;
+  background: #f1f3f4;
+  color: #5f6b76;
+}
+
+.status-badge[data-status='rejected'] {
+  border-color: #dfaaaa;
+  background: var(--error-soft);
+  color: var(--error);
+}
+
+.priority-badge[data-priority='low'] {
+  border-color: #c8cdd1;
+  background: #f1f3f4;
+  color: #5f6b76;
+}
+
+.priority-badge[data-priority='medium'] {
+  border-color: #a8cce5;
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+.priority-badge[data-priority='high'] {
+  border-color: #e6c977;
+  background: var(--warning-soft);
+  color: #7d5a00;
+}
+
+.priority-badge[data-priority='urgent'] {
+  border-color: #dfaaaa;
+  background: var(--error-soft);
+  color: var(--error);
+}

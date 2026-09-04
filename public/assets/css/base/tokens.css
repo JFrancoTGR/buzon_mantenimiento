@@ -1,0 +1,52 @@
+@import url('https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,100..900;1,100..900&display=swap');
+
+:root {
+  color-scheme: light;
+  font-family: 'Archivo', Arial, sans-serif;
+
+  --primary: rgb(195 20 34);
+  --primary-dark: rgb(146 13 24);
+  --primary-soft: rgb(255 244 245);
+
+  --background: rgb(244 246 248);
+  --surface: rgb(255 255 255);
+  --surface-muted: rgb(246 248 250);
+  --surface-strong: rgb(238 242 245);
+
+  --text-primary: rgb(23 32 42);
+  --text-secondary: rgb(95 107 118);
+  --text-muted: rgb(119 130 140);
+  --text-on-primary: rgb(255 255 255);
+
+  --border: rgb(188 188 188);
+  --border-soft: rgb(221 226 230);
+  --border-strong: rgb(162 170 177);
+
+  --success: rgb(33 122 60);
+  --success-soft: rgb(234 247 238);
+  --warning: rgb(154 101 0);
+  --warning-soft: rgb(255 246 224);
+  --error: rgb(166 27 27);
+  --error-soft: rgb(254 237 237);
+  --info: rgb(36 94 140);
+  --info-soft: rgb(235 244 251);
+
+  --shadow-sm: 0 4px 16px rgb(3 32 42 / 6%);
+  --shadow-md: 0 14px 40px rgb(3 32 42 / 8%);
+
+  --sidebar-width: 256px;
+  --topbar-height: 68px;
+  --content-max: 1600px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  --transition-fast: 160ms ease;
+}

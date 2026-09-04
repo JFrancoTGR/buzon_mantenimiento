@@ -1,0 +1,15 @@
+@import url('./base/tokens.css');
+@import url('./base/reset.css');
+@import url('./base/typography.css');
+@import url('./components/buttons.css');
+@import url('./components/forms.css');
+@import url('./components/cards.css');
+@import url('./components/badges.css');
+@import url('./components/tables.css');
+@import url('./components/dropdown.css');
+@import url('./layouts/dashboard-layout.css');
+@import url('./pages/dashboard.css');
+@import url('./pages/auth.css');
+@import url('./pages/new-ticket.css');
+@import url('./pages/ticket-detail.css');
+@import url('./pages/tickets.css');

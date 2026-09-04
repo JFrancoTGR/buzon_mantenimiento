@@ -1,0 +1,28 @@
+Options -Indexes -MultiViews
+DirectoryIndex public/index.php
+
+# Bloquea archivos sensibles y artefactos internos.
+<FilesMatch "(^\.|\.sql$|\.log$|\.ini$|^README.*\.md$|^composer\.(json|lock)$)">
+  Require all denied
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /mantenimiento/
+
+  # Impide acceso HTTP a las capas privadas del proyecto.
+  RewriteRule ^(?:app|bootstrap|scripts|sql|storage|vendor)(?:/|$) - [F,L,NC]
+
+  # Evita ciclos cuando Apache ya realizó la reescritura interna.
+  RewriteRule ^public(?:/|$) - [L]
+
+  # Rutas públicas explícitas.
+  RewriteRule ^assets/(.*)$ public/assets/$1 [L,NC]
+  RewriteRule ^api/(.*)$ public/api/$1 [L,NC]
+
+  # Páginas públicas actuales.
+  RewriteRule ^(login|register|verify-email|change-password|dashboard|new-ticket|ticket|tickets)\.html$ public/$1.html [L,NC]
+
+  # Entrada principal.
+  RewriteRule ^$ public/index.php [L]
+</IfModule>

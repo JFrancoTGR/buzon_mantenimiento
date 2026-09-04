@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Crear cuenta | Plataforma de Mantenimiento</title>
+  <link rel="stylesheet" href="./assets/css/auth.css">
+</head>
+<body class="auth-page">
+  <main class="auth-card auth-card--wide">
+    <div class="auth-card__brand">
+      <span class="auth-card__mark" aria-hidden="true">M</span>
+      <span class="auth-card__brand-name">Estrategia Urbana</span>
+    </div>
+
+    <section data-registration-form-section>
+      <h1>Crear cuenta</h1>
+      <p class="auth-card__intro">Regístrate para generar y consultar tus reportes de mantenimiento.</p>
+
+      <div class="auth-card__notice" data-location-context hidden>
+        <strong>Ubicación identificada:</strong>
+        <span data-location-name></span>
+        <span class="auth-card__notice-detail">La conservaremos para tu primer reporte.</span>
+      </div>
+
+      <form class="form" data-register-form novalidate>
+        <div class="form-grid form-grid--two">
+          <label class="form-field">
+            Nombre
+            <input type="text" name="first_name" autocomplete="given-name" required maxlength="80">
+          </label>
+
+          <label class="form-field">
+            Apellidos
+            <input type="text" name="last_name" autocomplete="family-name" required maxlength="120">
+          </label>
+        </div>
+
+        <label class="form-field">
+          Correo electrónico
+          <input type="email" name="email" autocomplete="email" required maxlength="190">
+        </label>
+
+        <label class="form-field">
+          Contraseña
+          <input type="password" name="password" autocomplete="new-password" required minlength="12">
+          <span class="form-help">Utiliza al menos 12 caracteres y combina tres tipos: minúsculas, mayúsculas, números o símbolos.</span>
+        </label>
+
+        <label class="form-field">
+          Confirmar contraseña
+          <input type="password" name="password_confirmation" autocomplete="new-password" required minlength="12">
+        </label>
+
+        <label class="checkbox-field">
+          <input type="checkbox" name="privacy_accepted" value="1" required>
+          <span>He leído y acepto el aviso de privacidad aplicable al uso de la plataforma.</span>
+        </label>
+
+        <label class="form-field form-honeypot" aria-hidden="true">
+          Sitio web de la empresa
+          <input type="text" name="company_website" tabindex="-1" autocomplete="off">
+        </label>
+
+        <button class="button button--primary" type="submit">Crear cuenta</button>
+      </form>
+
+      <p class="message" data-message role="alert" aria-live="polite"></p>
+
+      <p class="auth-switch">
+        ¿Ya tienes una cuenta?
+        <a id="login-link" href="./login.html">Iniciar sesión</a>
+      </p>
+    </section>
+
+    <section class="registration-result" data-registration-result hidden>
+      <div class="registration-result__icon" aria-hidden="true">✓</div>
+      <h1>Revisa tu correo</h1>
+      <p>Enviamos un enlace de verificación a:</p>
+      <p class="registration-result__email" data-result-email></p>
+      <p data-delivery-message>Debes confirmar tu correo antes de crear un reporte.</p>
+
+      <div class="registration-result__actions">
+        <button class="button button--secondary" type="button" data-resend-button>Reenviar correo</button>
+        <button class="button button--text" type="button" data-use-another-email>Usar otro correo</button>
+      </div>
+
+      <p class="message" data-result-message role="status" aria-live="polite"></p>
+    </section>
+  </main>
+
+  <script type="module" src="./assets/js/modules/register.js"></script>
+</body>
+</html>
