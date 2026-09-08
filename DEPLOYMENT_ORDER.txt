@@ -1,0 +1,23 @@
+MÓDULO USUARIOS V1 — ORDEN DE DESPLIEGUE
+
+1) Confirmar backup del proyecto y BDD.
+2) La BDD actual YA tiene migración 15 aplicada. No hace falta repetirla en esta instancia.
+3) Copiar el contenido de este paquete sobre la raíz del proyecto respetando rutas.
+   - bootstrap/app.php reemplaza la versión actual.
+   - public/assets/js/core/permissions.js reemplaza la versión actual.
+   - los demás archivos son nuevos.
+4) Ejecutar desde la raíz:
+      php scripts/apply_user_module_integration.php
+5) Opcional/recomendado en .env:
+      USER_INVITATION_TTL_HOURS=72
+      USER_INVITATION_RESEND_COOLDOWN_MINUTES=10
+      USER_INVITATION_RESEND_MAX_PER_HOUR=5
+6) Ejecutar:
+      php scripts/check_user_admin_module.php
+7) Abrir:
+      /mantenimiento/users.html
+8) Primera prueba sugerida:
+      juan.francomadrid+invitado@gmail.com
+   Crear como Supervisor, recibir correo, activar, comprobar sesión automática.
+
+IMPORTANTE: no ejecutar todavía ningún reset QA→producción. Ese reset se diseñará una vez validado este módulo.

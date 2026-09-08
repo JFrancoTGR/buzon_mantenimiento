@@ -19,6 +19,8 @@ use App\Services\QuotationService;
 use App\Services\TicketService;
 use App\Services\TicketDetailService;
 use App\Services\SupervisorService;
+use App\Services\UserAdminService;
+use App\Services\UserInvitationService;
 
 const ROOT_PATH = __DIR__ . '/..';
 
@@ -55,6 +57,17 @@ $pdo = Database::connection();
 $auditService = new AuditService($pdo);
 $authService = new AuthService($pdo, $auditService);
 $mailerService = new MailerService($pdo);
+$userInvitationService = new UserInvitationService(
+    $pdo,
+    $auditService,
+    $authService,
+    $mailerService
+);
+$userAdminService = new UserAdminService(
+    $pdo,
+    $auditService,
+    $userInvitationService
+);
 $registrationService = new RegistrationService(
     $pdo,
     $auditService,
@@ -107,6 +120,8 @@ return [
     'audit' => $auditService,
     'auth' => $authService,
     'mailer' => $mailerService,
+    'user_invitations' => $userInvitationService,
+    'user_admin' => $userAdminService,
     'registration' => $registrationService,
     'dashboard' => $dashboardService,
     'notifications' => $notificationService,

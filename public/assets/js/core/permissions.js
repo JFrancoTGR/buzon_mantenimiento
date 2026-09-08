@@ -17,6 +17,8 @@ export function applyPermissionVisibility(user, root = document) {
     element.hidden = !hasAnyPermission(user, permissions);
   });
 
+  activateImplementedAdminModules(user, root);
+
   root.querySelectorAll('[data-nav-group]').forEach((group) => {
     const visibleItems = [...group.querySelectorAll('.nav-link')]
       .some((item) => !item.hidden);
@@ -24,4 +26,18 @@ export function applyPermissionVisibility(user, root = document) {
   });
 
   document.documentElement.classList.add('permissions-ready');
+}
+
+function activateImplementedAdminModules(user, root) {
+  if (!hasPermission(user, 'user.manage')) return;
+
+  root.querySelectorAll('a[data-coming-soon][data-permissions]').forEach((link) => {
+    const permissions = String(link.dataset.permissions || '')
+      .split(',')
+      .map((permission) => permission.trim());
+
+    if (!permissions.includes('user.manage')) return;
+    link.href = './users.html';
+    link.removeAttribute('data-coming-soon');
+  });
 }
