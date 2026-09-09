@@ -298,7 +298,8 @@ final class AuthService
         SessionManager::destroyLocal();
     }
 
-    public function changePassword(string $currentPassword, string $newPassword, string $confirmation): void
+    /** @return array{user_id:int,email:string,full_name:string} */
+    public function changePassword(string $currentPassword, string $newPassword, string $confirmation): array
     {
         $user = $this->currentUser();
 
@@ -352,6 +353,12 @@ final class AuthService
         }
 
         SessionManager::destroyLocal();
+
+        return [
+            'user_id' => (int) $user['id'],
+            'email' => (string) $user['email'],
+            'full_name' => (string) $user['full_name'],
+        ];
     }
 
     public static function validatePasswordStrength(string $password): void

@@ -7,6 +7,7 @@ use App\Core\Database;
 use App\Core\Http;
 use App\Exceptions\HttpException;
 use App\Security\SessionManager;
+use App\Services\AccountService;
 use App\Services\AuditService;
 use App\Services\AuthorizationRequestService;
 use App\Services\AuthorizationDecisionService;
@@ -14,6 +15,7 @@ use App\Services\AuthService;
 use App\Services\DashboardService;
 use App\Services\MailerService;
 use App\Services\NotificationService;
+use App\Services\PasswordResetService;
 use App\Services\RegistrationService;
 use App\Services\QuotationService;
 use App\Services\TicketService;
@@ -56,7 +58,9 @@ SessionManager::start();
 $pdo = Database::connection();
 $auditService = new AuditService($pdo);
 $authService = new AuthService($pdo, $auditService);
+$accountService = new AccountService($pdo, $auditService, $authService);
 $mailerService = new MailerService($pdo);
+$passwordResetService = new PasswordResetService($pdo, $auditService, $mailerService);
 $userInvitationService = new UserInvitationService(
     $pdo,
     $auditService,
@@ -119,7 +123,9 @@ return [
     'pdo' => $pdo,
     'audit' => $auditService,
     'auth' => $authService,
+    'account' => $accountService,
     'mailer' => $mailerService,
+    'password_reset' => $passwordResetService,
     'user_invitations' => $userInvitationService,
     'user_admin' => $userAdminService,
     'registration' => $registrationService,

@@ -1,4 +1,7 @@
 import { apiRequest, getCsrfToken } from '../core/api.js';
+import { setupPasswordVisibility } from '../components/passwordVisibility.js';
+
+setupPasswordVisibility();
 
 const form = document.querySelector('[data-login-form]');
 const message = document.querySelector('[data-message]');

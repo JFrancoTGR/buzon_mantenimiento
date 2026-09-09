@@ -58,14 +58,6 @@ final class UserInvitationService
             ->add(new DateInterval('PT' . Env::int('USER_INVITATION_TTL_HOURS', 72) . 'H'))
             ->format('Y-m-d H:i:s');
 
-        $revoke = $this->pdo->prepare(
-            'UPDATE user_invitation_tokens
-             SET revoked_at = COALESCE(revoked_at, UTC_TIMESTAMP())
-             WHERE user_id = :user_id
-               AND used_at IS NULL
-               AND revoked_at IS NULL'
-        );
-        $revoke->execute(['user_id' => $userId]);
 
         $insert = $this->pdo->prepare(
             'INSERT INTO user_invitation_tokens (
@@ -101,6 +93,7 @@ final class UserInvitationService
         );
 
         return [
+            'token_id' => $tokenId,
             'user_id' => $userId,
             'recipient_email' => (string) $user['email'],
             'recipient_name' => trim((string) $user['first_name'] . ' ' . (string) $user['last_name']),
@@ -113,24 +106,65 @@ final class UserInvitationService
     /** @param array<string, mixed> $invitation */
     public function deliver(array $invitation): bool
     {
+        $userId = (int) $invitation['user_id'];
+        $tokenId = (int) $invitation['token_id'];
+
         try {
             $this->mailer->sendUserInvitationEmail(
-                (int) $invitation['user_id'],
+                $userId,
                 (string) $invitation['recipient_email'],
                 (string) $invitation['recipient_name'],
                 (string) $invitation['raw_token'],
                 (string) $invitation['expires_at']
             );
+            $this->finalizeDelivery($userId, $tokenId, true);
             return true;
         } catch (Throwable $exception) {
+            $this->finalizeDelivery($userId, $tokenId, false);
             $this->audit->safeRecord(
                 'user.invitation.delivery_failed',
                 'user',
-                (int) $invitation['user_id'],
+                $userId,
                 null,
                 ['email' => (string) $invitation['recipient_email']]
             );
             return false;
+        }
+    }
+
+    private function finalizeDelivery(int $userId, int $tokenId, bool $delivered): void
+    {
+        try {
+            if ($delivered) {
+                $statement = $this->pdo->prepare(
+                    'UPDATE user_invitation_tokens
+                     SET revoked_at = COALESCE(revoked_at, UTC_TIMESTAMP())
+                     WHERE user_id = :user_id
+                       AND id <> :token_id
+                       AND used_at IS NULL
+                       AND revoked_at IS NULL'
+                );
+                $statement->execute(['user_id' => $userId, 'token_id' => $tokenId]);
+                return;
+            }
+
+            $statement = $this->pdo->prepare(
+                'UPDATE user_invitation_tokens
+                 SET revoked_at = COALESCE(revoked_at, UTC_TIMESTAMP())
+                 WHERE id = :token_id
+                   AND user_id = :user_id
+                   AND used_at IS NULL
+                   AND revoked_at IS NULL'
+            );
+            $statement->execute(['token_id' => $tokenId, 'user_id' => $userId]);
+        } catch (Throwable $exception) {
+            $this->audit->safeRecord(
+                'user.invitation.delivery_finalize_failed',
+                'user_invitation_token',
+                $tokenId,
+                null,
+                ['user_id' => $userId, 'delivered' => $delivered]
+            );
         }
     }
 

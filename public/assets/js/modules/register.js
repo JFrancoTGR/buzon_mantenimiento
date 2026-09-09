@@ -1,4 +1,7 @@
 import { apiRequest, getCsrfToken } from '../core/api.js';
+import { setupPasswordVisibility } from '../components/passwordVisibility.js';
+
+setupPasswordVisibility();
 
 const formSection = document.querySelector('[data-registration-form-section]');
 const resultSection = document.querySelector('[data-registration-result]');

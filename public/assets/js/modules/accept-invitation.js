@@ -1,5 +1,8 @@
 import { apiRequest, getCsrfToken } from '../core/api.js';
 import { formatDateTime } from '../utils/date.js';
+import { setupPasswordVisibility } from '../components/passwordVisibility.js';
+
+setupPasswordVisibility();
 
 const loading = document.querySelector('[data-invitation-loading]');
 const formSection = document.querySelector('[data-invitation-form-section]');

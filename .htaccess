@@ -21,7 +21,7 @@ DirectoryIndex public/index.php
   RewriteRule ^api/(.*)$ public/api/$1 [L,NC]
 
   # Páginas públicas actuales.
-  RewriteRule ^(login|register|verify-email|accept-invitation|change-password|dashboard|new-ticket|ticket|tickets|users)\.html$ public/$1.html [L,NC]
+  RewriteRule ^(login|register|verify-email|accept-invitation|change-password|dashboard|new-ticket|ticket|tickets|users|profile|forgot-password|reset-password)\.html$ public/$1.html [L,NC]
 
   # Entrada principal.
   RewriteRule ^$ public/index.php [L]

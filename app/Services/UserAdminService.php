@@ -104,10 +104,20 @@ final class UserAdminService
                 INNER JOIN user_roles ur ON ur.user_id = u.id
                 INNER JOIN roles r ON r.id = ur.role_id
                 LEFT JOIN user_invitation_tokens uit
-                  ON uit.id = (
-                      SELECT MAX(uit2.id)
-                      FROM user_invitation_tokens uit2
-                      WHERE uit2.user_id = u.id
+                  ON uit.id = COALESCE(
+                      (
+                          SELECT MAX(uit2.id)
+                          FROM user_invitation_tokens uit2
+                          WHERE uit2.user_id = u.id
+                            AND uit2.used_at IS NULL
+                            AND uit2.revoked_at IS NULL
+                            AND uit2.expires_at > UTC_TIMESTAMP()
+                      ),
+                      (
+                          SELECT MAX(uit3.id)
+                          FROM user_invitation_tokens uit3
+                          WHERE uit3.user_id = u.id
+                      )
                   )
                 WHERE {$whereSql}
                 ORDER BY u.created_at DESC, u.id DESC
@@ -534,6 +544,8 @@ final class UserAdminService
             'SELECT created_at
              FROM user_invitation_tokens
              WHERE user_id = :user_id
+               AND used_at IS NULL
+               AND revoked_at IS NULL
              ORDER BY created_at DESC
              LIMIT 1'
         );

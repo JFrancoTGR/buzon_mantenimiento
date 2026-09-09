@@ -71,7 +71,6 @@ final class RegistrationService
 
         AuthService::validatePasswordStrength($password);
         $this->assertRegistrationRateLimit(Http::clientIp());
-        $this->mailer->assertReady();
 
         $this->pdo->beginTransaction();
 
@@ -130,7 +129,7 @@ final class RegistrationService
                 'role_id' => (int) $roleId,
             ]);
 
-            $token = $this->issueToken($userId, $location['id'] ?? null);
+            $issuedToken = $this->issueToken($userId, $location['id'] ?? null);
 
             $this->audit->record(
                 'auth.registration.created',
@@ -161,11 +160,13 @@ final class RegistrationService
                 $userId,
                 $email,
                 trim($firstName . ' ' . $lastName),
-                $token,
+                (string) $issuedToken['raw_token'],
                 $location
             );
+            $this->finalizeVerificationTokenDelivery($userId, (int) $issuedToken['token_id'], true);
         } catch (Throwable $exception) {
             $emailSent = false;
+            $this->finalizeVerificationTokenDelivery($userId, (int) $issuedToken['token_id'], false);
             $this->audit->safeRecord('auth.email_verification.delivery_failed', 'user', $userId, null, [
                 'email' => $email,
             ]);
@@ -205,11 +206,13 @@ final class RegistrationService
 
         $userId = (int) $user['id'];
         $latestStatement = $this->pdo->prepare(
-            'SELECT evt.created_at, evt.location_id, l.code AS location_code, l.name AS location_name
+            'SELECT evt.created_at, evt.location_id, evt.used_at, evt.revoked_at, l.code AS location_code, l.name AS location_name
              FROM email_verification_tokens evt
              LEFT JOIN locations l ON l.id = evt.location_id AND l.is_active = 1
              WHERE evt.user_id = :user_id
-             ORDER BY evt.created_at DESC
+             ORDER BY
+                 CASE WHEN evt.used_at IS NULL AND evt.revoked_at IS NULL THEN 0 ELSE 1 END,
+                 evt.created_at DESC
              LIMIT 1'
         );
         $latestStatement->execute(['user_id' => $userId]);
@@ -232,7 +235,7 @@ final class RegistrationService
             return ['accepted' => true];
         }
 
-        if (is_array($latest)) {
+        if (is_array($latest) && $latest['used_at'] === null && $latest['revoked_at'] === null) {
             $latestAt = new DateTimeImmutable((string) $latest['created_at'], new DateTimeZone('UTC'));
             if ($latestAt->add(new DateInterval("PT{$cooldownMinutes}M")) > $now) {
                 $this->audit->safeRecord('auth.email_verification.resend_limited', 'user', $userId, null, ['reason' => 'cooldown']);
@@ -264,7 +267,7 @@ final class RegistrationService
         $this->pdo->beginTransaction();
 
         try {
-            $token = $this->issueToken($userId, $location['id'] ?? null);
+            $issuedToken = $this->issueToken($userId, $location['id'] ?? null);
             $this->audit->record(
                 'auth.email_verification.resent',
                 'user',
@@ -287,10 +290,12 @@ final class RegistrationService
                 $userId,
                 (string) $user['email'],
                 trim((string) $user['first_name'] . ' ' . (string) $user['last_name']),
-                $token,
+                (string) $issuedToken['raw_token'],
                 $location
             );
+            $this->finalizeVerificationTokenDelivery($userId, (int) $issuedToken['token_id'], true);
         } catch (Throwable $exception) {
+            $this->finalizeVerificationTokenDelivery($userId, (int) $issuedToken['token_id'], false);
             $this->audit->safeRecord('auth.email_verification.delivery_failed', 'user', $userId, null, [
                 'email' => $email,
                 'resend' => true,
@@ -443,22 +448,14 @@ final class RegistrationService
         ];
     }
 
-    private function issueToken(int $userId, ?int $locationId): string
+    /** @return array{token_id:int,raw_token:string} */
+    private function issueToken(int $userId, ?int $locationId): array
     {
         $rawToken = bin2hex(random_bytes(32));
         $tokenHash = hash('sha256', $rawToken);
         $expiresAt = (new DateTimeImmutable('now', new DateTimeZone('UTC')))
             ->add(new DateInterval('PT' . Env::int('EMAIL_VERIFICATION_TTL_MINUTES', 60) . 'M'))
             ->format('Y-m-d H:i:s');
-
-        $revoke = $this->pdo->prepare(
-            'UPDATE email_verification_tokens
-             SET revoked_at = COALESCE(revoked_at, UTC_TIMESTAMP())
-             WHERE user_id = :user_id
-               AND used_at IS NULL
-               AND revoked_at IS NULL'
-        );
-        $revoke->execute(['user_id' => $userId]);
 
         $insert = $this->pdo->prepare(
             'INSERT INTO email_verification_tokens (
@@ -478,7 +475,46 @@ final class RegistrationService
             'user_agent' => Http::userAgent(),
         ]);
 
-        return $rawToken;
+        return [
+            'token_id' => (int) $this->pdo->lastInsertId(),
+            'raw_token' => $rawToken,
+        ];
+    }
+
+    private function finalizeVerificationTokenDelivery(int $userId, int $tokenId, bool $delivered): void
+    {
+        try {
+            if ($delivered) {
+                $statement = $this->pdo->prepare(
+                    'UPDATE email_verification_tokens
+                     SET revoked_at = COALESCE(revoked_at, UTC_TIMESTAMP())
+                     WHERE user_id = :user_id
+                       AND id <> :token_id
+                       AND used_at IS NULL
+                       AND revoked_at IS NULL'
+                );
+                $statement->execute(['user_id' => $userId, 'token_id' => $tokenId]);
+                return;
+            }
+
+            $statement = $this->pdo->prepare(
+                'UPDATE email_verification_tokens
+                 SET revoked_at = COALESCE(revoked_at, UTC_TIMESTAMP())
+                 WHERE id = :token_id
+                   AND user_id = :user_id
+                   AND used_at IS NULL
+                   AND revoked_at IS NULL'
+            );
+            $statement->execute(['token_id' => $tokenId, 'user_id' => $userId]);
+        } catch (Throwable $exception) {
+            $this->audit->safeRecord(
+                'auth.email_verification.delivery_finalize_failed',
+                'email_verification_token',
+                $tokenId,
+                $userId,
+                ['delivered' => $delivered]
+            );
+        }
     }
 
     private function assertRegistrationRateLimit(?string $ipAddress): void
