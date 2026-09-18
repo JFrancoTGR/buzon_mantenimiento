@@ -8,7 +8,7 @@ Options -Indexes -MultiViews
   RewriteEngine On
   RewriteBase /core/
 
-  RewriteRule ^(?:app|bootstrap|sql|storage|vendor)(?:/|$) - [F,L,NC]
+  RewriteRule ^(?:app|bootstrap|scripts|sql|storage|vendor)(?:/|$) - [F,L,NC]
 
   # Evita ciclos sobre reescrituras internas.
   RewriteRule ^public(?:/|$) - [L]

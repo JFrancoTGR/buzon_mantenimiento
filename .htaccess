@@ -9,7 +9,7 @@ Options -Indexes -MultiViews
   RewriteEngine On
 
   # Nunca exponer capas privadas del Core.
-  RewriteRule ^core/(?:app|bootstrap|sql|storage|vendor)(?:/|$) - [F,L,NC]
+  RewriteRule ^core/(?:app|bootstrap|scripts|sql|storage|vendor)(?:/|$) - [F,L,NC]
 
   # Nunca exponer capas privadas de Maintenance.
   RewriteRule ^maintenance/(?:app|bootstrap|scripts|sql|storage|vendor)(?:/|$) - [F,L,NC]
