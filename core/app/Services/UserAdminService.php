@@ -1,6 +1,6 @@
 <?php
 
-declare(strict_types=1);
+declare (strict_types = 1);
 
 namespace App\Services;
 
@@ -51,12 +51,12 @@ final class UserAdminService
         foreach ($rows as $row) {
             $code = (string) $row['application_code'];
 
-            if (!isset($applications[$code])) {
+            if (! isset($applications[$code])) {
                 $applications[$code] = [
-                    'code' => $code,
-                    'name' => (string) $row['application_name'],
+                    'code'      => $code,
+                    'name'      => (string) $row['application_name'],
                     'is_active' => (bool) $row['application_active'],
-                    'roles' => [],
+                    'roles'     => [],
                 ];
             }
 
@@ -69,8 +69,8 @@ final class UserAdminService
         }
 
         return [
-            'statuses' => self::STATUSES,
-            'applications' => array_values($applications),
+            'statuses'          => self::STATUSES,
+            'applications'      => array_values($applications),
             'can_manage_access' => AuthorizationService::hasPermission(
                 $actor,
                 'core',
@@ -91,13 +91,13 @@ final class UserAdminService
             'user.manage'
         );
 
-        $search = trim((string) ($filters['search'] ?? ''));
-        $status = strtolower(trim((string) ($filters['status'] ?? '')));
+        $search      = trim((string) ($filters['search'] ?? ''));
+        $status      = strtolower(trim((string) ($filters['status'] ?? '')));
         $application = strtolower(
             trim((string) ($filters['application'] ?? ''))
         );
 
-        $page = max(1, (int) ($filters['page'] ?? 1));
+        $page    = max(1, (int) ($filters['page'] ?? 1));
         $perPage = min(
             100,
             max(10, (int) ($filters['per_page'] ?? 25))
@@ -105,7 +105,7 @@ final class UserAdminService
 
         if (
             $status !== ''
-            && !in_array($status, self::STATUSES, true)
+            && ! in_array($status, self::STATUSES, true)
         ) {
             throw new HttpException(
                 422,
@@ -133,22 +133,27 @@ final class UserAdminService
             );
         }
 
-        $where = ['1 = 1'];
+        $where  = ['1 = 1'];
         $params = [];
 
         if ($search !== '') {
             $where[] = "(
-                u.first_name LIKE :search
-                OR u.last_name LIKE :search
-                OR u.email LIKE :search
-                OR CONCAT(u.first_name, ' ', u.last_name) LIKE :search
-            )";
+        u.first_name LIKE :search_first_name
+        OR u.last_name LIKE :search_last_name
+        OR u.email LIKE :search_email
+        OR CONCAT(u.first_name, ' ', u.last_name) LIKE :search_full_name
+    )";
 
-            $params['search'] = '%' . $search . '%';
+            $searchValue = '%' . $search . '%';
+
+            $params['search_first_name'] = $searchValue;
+            $params['search_last_name']  = $searchValue;
+            $params['search_email']      = $searchValue;
+            $params['search_full_name']  = $searchValue;
         }
 
         if ($status !== '') {
-            $where[] = 'u.status = :status';
+            $where[]          = 'u.status = :status';
             $params['status'] = $status;
         }
 
@@ -176,7 +181,7 @@ final class UserAdminService
 
         $count->execute($params);
 
-        $total = (int) $count->fetchColumn();
+        $total  = (int) $count->fetchColumn();
         $offset = ($page - 1) * $perPage;
 
         $statement = $this->pdo->prepare(
@@ -204,21 +209,21 @@ final class UserAdminService
 
         foreach ($rows as $row) {
             $items[(int) $row['id']] = [
-                'id' => (int) $row['id'],
-                'first_name' => (string) $row['first_name'],
-                'last_name' => (string) $row['last_name'],
-                'full_name' => trim(
+                'id'                => (int) $row['id'],
+                'first_name'        => (string) $row['first_name'],
+                'last_name'         => (string) $row['last_name'],
+                'full_name'         => trim(
                     (string) $row['first_name']
                     . ' '
                     . (string) $row['last_name']
                 ),
-                'email' => (string) $row['email'],
-                'status' => (string) $row['status'],
+                'email'             => (string) $row['email'],
+                'status'            => (string) $row['status'],
                 'email_verified_at' => $row['email_verified_at'],
-                'last_login_at' => $row['last_login_at'],
-                'created_at' => $row['created_at'],
-                'deactivated_at' => $row['deactivated_at'],
-                'applications' => [],
+                'last_login_at'     => $row['last_login_at'],
+                'created_at'        => $row['created_at'],
+                'deactivated_at'    => $row['deactivated_at'],
+                'applications'      => [],
             ];
         }
 
@@ -256,7 +261,7 @@ final class UserAdminService
             foreach ($assignments->fetchAll() as $assignment) {
                 $userId = (int) $assignment['user_id'];
 
-                if (!isset($items[$userId])) {
+                if (! isset($items[$userId])) {
                     continue;
                 }
 
@@ -272,12 +277,12 @@ final class UserAdminService
         }
 
         return [
-            'items' => array_values($items),
+            'items'      => array_values($items),
             'pagination' => [
-                'page' => $page,
+                'page'     => $page,
                 'per_page' => $perPage,
-                'total' => $total,
-                'pages' => max(
+                'total'    => $total,
+                'pages'    => max(
                     1,
                     (int) ceil($total / $perPage)
                 ),
