@@ -1,6 +1,6 @@
 <?php
 
-declare(strict_types=1);
+declare (strict_types = 1);
 
 namespace App\Services;
 
@@ -79,9 +79,9 @@ SQL;
             $canAccess = (bool) $row['can_access'];
 
             $canLaunch =
-                $canAccess
-                && (bool) $row['is_active']
-                && (string) $row['hub_status'] === 'available';
+            $canAccess
+            && (bool) $row['is_active']
+            && (string) $row['hub_status'] === 'available';
 
             $role = null;
 
@@ -93,23 +93,23 @@ SQL;
             }
 
             $applications[] = [
-                'code' => (string) $row['code'],
-                'name' => (string) $row['name'],
+                'code'        => (string) $row['code'],
+                'name'        => (string) $row['name'],
                 'description' => $row['description'] !== null
                     ? (string) $row['description']
                     : null,
-                'base_path' => (string) $row['base_path'],
-                'status' => (string) $row['hub_status'],
-                'category' => $row['hub_category'] !== null
+                'base_path'   => (string) $row['base_path'],
+                'status'      => (string) $row['hub_status'],
+                'category'    => $row['hub_category'] !== null
                     ? (string) $row['hub_category']
                     : null,
-                'icon' => $row['icon_key'] !== null
+                'icon'        => $row['icon_key'] !== null
                     ? (string) $row['icon_key']
                     : null,
-                'is_active' => (bool) $row['is_active'],
-                'can_access' => $canAccess,
-                'can_launch' => $canLaunch,
-                'role' => $role,
+                'is_active'   => (bool) $row['is_active'],
+                'can_access'  => $canAccess,
+                'can_launch'  => $canLaunch,
+                'role'        => $role,
             ];
         }
 

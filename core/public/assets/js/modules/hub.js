@@ -7,6 +7,7 @@ const toolsGrid = document.querySelector('[data-tools-grid]');
 setupSidebar();
 setupUserMenu();
 loadApplications();
+setupComingSoonActions();
 
 async function loadApplications() {
   if (!toolsGrid) return;
@@ -79,22 +80,13 @@ function createApplicationCard(application) {
   const icon = document.createElement('span');
   icon.className = 'tool-card__icon';
 
-  const svg = document.createElementNS(
-    'http://www.w3.org/2000/svg',
-    'svg'
-  );
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
 
   svg.setAttribute('aria-hidden', 'true');
 
-  const use = document.createElementNS(
-    'http://www.w3.org/2000/svg',
-    'use'
-  );
+  const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
 
-  use.setAttribute(
-    'href',
-    `#${resolveIcon(application.icon)}`
-  );
+  use.setAttribute('href', `#${resolveIcon(application.icon)}`);
 
   svg.append(use);
   icon.append(svg);
@@ -225,14 +217,33 @@ function showIntegrationNotice(application) {
   window.Swal?.fire({
     icon: 'info',
     title: application.name,
-    text:
-      'Esta herramienta se encuentra en proceso de integración con EU Tools.',
+    text: 'Esta herramienta se encuentra en proceso de integración con EU Tools.',
     confirmButtonText: 'Entendido',
     customClass: {
       popup: 'app-alert',
       confirmButton: 'app-alert__confirm',
     },
     buttonsStyling: false,
+  });
+}
+
+function setupComingSoonActions() {
+  document.querySelectorAll('[data-coming-soon]').forEach((element) => {
+    element.addEventListener('click', (event) => {
+      event.preventDefault();
+
+      window.Swal?.fire({
+        icon: 'info',
+        title: 'Próximamente',
+        text: 'Esta función todavía se encuentra en desarrollo dentro de EU Tools.',
+        confirmButtonText: 'Entendido',
+        customClass: {
+          popup: 'app-alert',
+          confirmButton: 'app-alert__confirm',
+        },
+        buttonsStyling: false,
+      });
+    });
   });
 }
 
