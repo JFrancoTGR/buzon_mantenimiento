@@ -1,14 +1,13 @@
 Options -Indexes -MultiViews
 DirectoryIndex public/index.php
 
-# Bloquea archivos sensibles y artefactos internos.
-<FilesMatch "(^\.|\.sql$|\.log$|\.ini$|^README.*\.md$|^composer\.(json|lock)$)">
+<FilesMatch "(^\.|\.sql$|\.log$|\.ini$|^README.*\.md$|^DEPLOYMENT_ORDER\.txt$|^composer\.(json|lock)$)">
   Require all denied
 </FilesMatch>
 
 <IfModule mod_rewrite.c>
   RewriteEngine On
-  RewriteBase /mantenimiento/
+  RewriteBase /maintenance/
 
   # Impide acceso HTTP a las capas privadas del proyecto.
   RewriteRule ^(?:app|bootstrap|scripts|sql|storage|vendor)(?:/|$) - [F,L,NC]

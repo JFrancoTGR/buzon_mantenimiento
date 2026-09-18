@@ -1,0 +1,18 @@
+Options -Indexes -MultiViews
+
+<FilesMatch "(^\.|\.sql$|\.log$|\.ini$|^README.*\.md$|^composer\.(json|lock)$)">
+  Require all denied
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /core/
+
+  RewriteRule ^(?:app|bootstrap|sql|storage|vendor)(?:/|$) - [F,L,NC]
+
+  # Evita ciclos sobre reescrituras internas.
+  RewriteRule ^public(?:/|$) - [L]
+
+  # Acceso interno temporal al API del Core.
+  RewriteRule ^api/(.*)$ public/api/$1 [L,NC]
+</IfModule>
