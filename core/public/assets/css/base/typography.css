@@ -1,0 +1,47 @@
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+h1 {
+  margin-bottom: var(--space-2);
+  font-size: clamp(1.65rem, 2.2vw, 2rem);
+  font-weight: 760;
+  letter-spacing: -0.025em;
+}
+
+h2 {
+  margin-bottom: var(--space-2);
+  font-size: 1.05rem;
+  font-weight: 720;
+}
+
+h3 {
+  font-size: 0.95rem;
+}
+
+p {
+  line-height: 1.55;
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.eyebrow {
+  margin: 0 0 var(--space-2);
+  color: var(--primary-dark);
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}

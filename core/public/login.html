@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+
+    <title>Acceso | EU Tools</title>
+
+    <link rel="stylesheet" href="/assets/css/auth.css" />
+  </head>
+
+  <body class="auth-page">
+    <main class="auth-card">
+      <div class="auth-card__brand">
+        <span class="auth-card__mark" aria-hidden="true">EU</span>
+
+        <span class="auth-card__brand-name">
+          Estrategia Urbana
+        </span>
+      </div>
+
+      <p class="eyebrow">Plataforma corporativa</p>
+
+      <h1>EU Tools</h1>
+
+      <p class="auth-card__intro">
+        Accede a las herramientas disponibles para tu cuenta.
+      </p>
+
+      <form class="form" data-login-form novalidate>
+        <label class="form-field">
+          Correo electrónico
+
+          <input
+            type="email"
+            name="email"
+            autocomplete="username"
+            maxlength="190"
+            required
+          />
+        </label>
+
+        <label class="form-field">
+          Contraseña
+
+          <input
+            type="password"
+            name="password"
+            autocomplete="current-password"
+            required
+          />
+        </label>
+
+        <button
+          class="button button--primary"
+          type="submit"
+        >
+          Iniciar sesión
+        </button>
+      </form>
+
+      <p
+        class="message"
+        data-message
+        role="alert"
+        aria-live="polite"
+      ></p>
+
+      <div class="auth-card__notice">
+        <strong>Acceso corporativo</strong>
+
+        <span>
+          Utiliza las credenciales asociadas a tu cuenta de EU Tools.
+        </span>
+
+        <span class="auth-card__notice-detail">
+          El acceso a cada herramienta depende de los permisos asignados a tu cuenta.
+        </span>
+      </div>
+    </main>
+
+    <script
+      type="module"
+      src="/assets/js/modules/login.js"
+    ></script>
+  </body>
+</html>

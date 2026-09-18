@@ -1,6 +1,6 @@
 <?php
 
-declare(strict_types=1);
+declare (strict_types = 1);
 
 namespace App\Services;
 
@@ -32,7 +32,7 @@ final class AuthService
     {
         $email = strtolower(trim($email));
 
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL) || $password === '') {
+        if (! filter_var($email, FILTER_VALIDATE_EMAIL) || $password === '') {
             throw new HttpException(
                 422,
                 'invalid_credentials_format',
@@ -60,7 +60,7 @@ final class AuthService
             $statement->execute(['email' => $email]);
             $user = $statement->fetch();
 
-            if (!is_array($user)) {
+            if (! is_array($user)) {
                 password_verify($password, self::DUMMY_PASSWORD_HASH);
 
                 $this->pdo->commit();
@@ -72,7 +72,7 @@ final class AuthService
                     null,
                     $this->getCoreApplicationId(),
                     [
-                        'email' => $email,
+                        'email'  => $email,
                         'reason' => 'not_found',
                     ]
                 );
@@ -130,8 +130,8 @@ final class AuthService
                 );
             }
 
-            if (!password_verify($password, (string) $user['password_hash'])) {
-                $attempts = (int) $user['failed_login_attempts'] + 1;
+            if (! password_verify($password, (string) $user['password_hash'])) {
+                $attempts       = (int) $user['failed_login_attempts'] + 1;
                 $newLockedUntil = null;
 
                 if ($attempts >= $maxAttempts) {
@@ -150,9 +150,9 @@ final class AuthService
                 );
 
                 $update->execute([
-                    'attempts' => $attempts,
+                    'attempts'     => $attempts,
                     'locked_until' => $newLockedUntil,
-                    'id' => $userId,
+                    'id'           => $userId,
                 ]);
 
                 $this->pdo->commit();
@@ -185,7 +185,7 @@ final class AuthService
 
                 $rehash->execute([
                     'hash' => password_hash($password, PASSWORD_DEFAULT),
-                    'id' => $userId,
+                    'id'   => $userId,
                 ]);
             }
 
@@ -259,7 +259,7 @@ final class AuthService
 
         $statement->execute([
             'session_id' => $auth['database_session_id'],
-            'user_id' => $auth['user_id'],
+            'user_id'    => $auth['user_id'],
         ]);
 
         $row = $statement->fetch();
@@ -270,17 +270,17 @@ final class AuthService
         );
 
         $isInvalid =
-            !is_array($row)
-            || $row['revoked_at'] !== null
-            || (string) $row['status'] !== 'active'
-            || !hash_equals(
-                (string) ($row['session_hash'] ?? ''),
-                SessionManager::sessionHash()
-            )
-            || new DateTimeImmutable(
-                (string) $row['expires_at'],
-                new DateTimeZone('UTC')
-            ) <= $now;
+        ! is_array($row)
+        || $row['revoked_at'] !== null
+        || (string) $row['status'] !== 'active'
+        || ! hash_equals(
+            (string) ($row['session_hash'] ?? ''),
+            SessionManager::sessionHash()
+        )
+        || new DateTimeImmutable(
+            (string) $row['expires_at'],
+            new DateTimeZone('UTC')
+        ) <= $now;
 
         if ($isInvalid) {
             $this->logout(false);
@@ -309,23 +309,23 @@ final class AuthService
 
         $touch->execute([
             'expires_at' => $newExpiry,
-            'id' => $auth['database_session_id'],
+            'id'         => $auth['database_session_id'],
         ]);
 
         $applications = $this->loadApplications($auth['user_id']);
 
         return [
-            'id' => (int) $row['id'],
-            'first_name' => (string) $row['first_name'],
-            'last_name' => (string) $row['last_name'],
-            'full_name' => trim(
+            'id'                   => (int) $row['id'],
+            'first_name'           => (string) $row['first_name'],
+            'last_name'            => (string) $row['last_name'],
+            'full_name'            => trim(
                 (string) $row['first_name'] . ' ' . (string) $row['last_name']
             ),
-            'email' => (string) $row['email'],
-            'status' => (string) $row['status'],
+            'email'                => (string) $row['email'],
+            'status'               => (string) $row['status'],
             'must_change_password' => (bool) $row['must_change_password'],
-            'last_login_at' => $row['last_login_at'],
-            'applications' => $applications,
+            'last_login_at'        => $row['last_login_at'],
+            'applications'         => $applications,
         ];
     }
 
@@ -342,7 +342,7 @@ final class AuthService
             );
 
             $statement->execute([
-                'id' => $auth['database_session_id'],
+                'id'      => $auth['database_session_id'],
                 'user_id' => $auth['user_id'],
             ]);
 
@@ -395,11 +395,11 @@ final class AuthService
         );
 
         $statement->execute([
-            'user_id' => $userId,
+            'user_id'      => $userId,
             'session_hash' => $sessionHash,
-            'ip_address' => Http::clientIp(),
-            'user_agent' => Http::userAgent(),
-            'expires_at' => $expiresAt,
+            'ip_address'   => Http::clientIp(),
+            'user_agent'   => Http::userAgent(),
+            'expires_at'   => $expiresAt,
         ]);
 
         return (int) $this->pdo->lastInsertId();
@@ -424,24 +424,34 @@ final class AuthService
                 ON r.id = uar.role_id
                AND r.application_id = uar.application_id
                AND r.is_active = 1
-             WHERE uar.user_id = :user_id
-               AND uar.revoked_at IS NULL
-             ORDER BY a.sort_order, a.code'
+            WHERE uar.user_id = :user_id
+  AND uar.revoked_at IS NULL
+  AND EXISTS (
+      SELECT 1
+      FROM role_permissions rp_access
+      INNER JOIN permissions p_access
+          ON p_access.id = rp_access.permission_id
+         AND p_access.application_id = rp_access.application_id
+      WHERE rp_access.application_id = uar.application_id
+        AND rp_access.role_id = uar.role_id
+        AND p_access.code = \'access\'
+  )
+ORDER BY a.sort_order, a.code'
         );
 
         $accessStatement->execute(['user_id' => $userId]);
 
         $applications = [];
-        $indexes = [];
+        $indexes      = [];
 
         foreach ($accessStatement->fetchAll() as $row) {
             $code = (string) $row['code'];
 
             $applications[] = [
-                'code' => $code,
-                'name' => (string) $row['name'],
-                'base_path' => (string) $row['base_path'],
-                'role' => [
+                'code'        => $code,
+                'name'        => (string) $row['name'],
+                'base_path'   => (string) $row['base_path'],
+                'role'        => [
                     'code' => (string) $row['role_code'],
                     'name' => (string) $row['role_name'],
                 ],
@@ -474,23 +484,33 @@ final class AuthService
                 ON p.id = rp.permission_id
                AND p.application_id = uar.application_id
              WHERE uar.user_id = :user_id
-               AND uar.revoked_at IS NULL
-             ORDER BY a.code, p.code'
-        );
+  AND uar.revoked_at IS NULL
+  AND EXISTS (
+      SELECT 1
+      FROM role_permissions rp_access
+      INNER JOIN permissions p_access
+          ON p_access.id = rp_access.permission_id
+         AND p_access.application_id = rp_access.application_id
+      WHERE rp_access.application_id = uar.application_id
+        AND rp_access.role_id = uar.role_id
+        AND p_access.code = \'access\'
+  )
+ORDER BY a.code, p.code'
+);
 
         $permissionsStatement->execute(['user_id' => $userId]);
 
         foreach ($permissionsStatement->fetchAll() as $row) {
             $applicationCode = (string) $row['application_code'];
 
-            if (!array_key_exists($applicationCode, $indexes)) {
+            if (! array_key_exists($applicationCode, $indexes)) {
                 continue;
             }
 
             $index = $indexes[$applicationCode];
 
             $applications[$index]['permissions'][] =
-                (string) $row['permission_code'];
+            (string) $row['permission_code'];
         }
 
         return $applications;

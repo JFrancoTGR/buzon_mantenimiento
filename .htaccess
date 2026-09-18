@@ -13,9 +13,21 @@ Require all denied
 
 RewriteRule ^core/(?:app|bootstrap|scripts|sql|storage|vendor)(?:/|$) - [F,L,NC]
 
+# Hub protegido del Core.
+RewriteRule ^$ core/public/index.php [L]
+
+# Login del Core.
+RewriteRule ^login/?$ core/public/login.php [L,NC]
+
+# Assets públicos del Core.
+RewriteRule ^assets/(.*)$ core/public/assets/$1 [L]
+
 # API central de autenticación.
 
 RewriteRule ^api/auth/(csrf|login|me|logout)/?$ core/public/api/auth/$1.php [L,NC]
+
+# API del Hub.
+RewriteRule ^api/hub/apps/?$ core/public/api/hub/apps.php [L,NC]
 
 # Nunca exponer capas privadas de Maintenance.
 
