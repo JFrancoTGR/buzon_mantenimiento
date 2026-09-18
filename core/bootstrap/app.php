@@ -10,6 +10,7 @@ use App\Security\SessionManager;
 use App\Services\AuditService;
 use App\Services\AuthService;
 use App\Services\WebAuthService;
+use App\Services\HubService;
 
 const ROOT_PATH = __DIR__ . '/..';
 
@@ -53,6 +54,7 @@ $pdo = Database::connection();
 $auditService = new AuditService($pdo);
 $authService  = new AuthService($pdo, $auditService);
 $webAuthService = new WebAuthService($authService);
+$hubService = new HubService($pdo);
 
 set_exception_handler(
     static function (Throwable $exception) use ($debug): void {
@@ -92,4 +94,5 @@ return [
     'audit' => $auditService,
     'auth'  => $authService,
     'webAuth' => $webAuthService,
+    'hub' => $hubService,
 ];
