@@ -11,6 +11,7 @@ use App\Services\AuditService;
 use App\Services\AuthService;
 use App\Services\WebAuthService;
 use App\Services\HubService;
+use App\Services\UserAdminService;
 
 const ROOT_PATH = __DIR__ . '/..';
 
@@ -55,6 +56,7 @@ $auditService = new AuditService($pdo);
 $authService  = new AuthService($pdo, $auditService);
 $webAuthService = new WebAuthService($authService);
 $hubService = new HubService($pdo);
+$userAdminService = new UserAdminService($pdo);
 
 set_exception_handler(
     static function (Throwable $exception) use ($debug): void {
@@ -95,4 +97,5 @@ return [
     'auth'  => $authService,
     'webAuth' => $webAuthService,
     'hub' => $hubService,
+    'user_admin' => $userAdminService,
 ];
