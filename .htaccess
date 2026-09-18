@@ -1,22 +1,31 @@
 Options -Indexes -MultiViews
 
 # Bloquea archivos internos/sensibles por nombre.
+
 <FilesMatch "(^\.|\.sql$|\.log$|\.ini$|^README.*\.md$|^DEPLOYMENT_ORDER\.txt$|^composer\.(json|lock)$)">
-  Require all denied
+Require all denied
 </FilesMatch>
 
 <IfModule mod_rewrite.c>
   RewriteEngine On
 
-  # Nunca exponer capas privadas del Core.
-  RewriteRule ^core/(?:app|bootstrap|scripts|sql|storage|vendor)(?:/|$) - [F,L,NC]
+# Nunca exponer capas privadas del Core.
 
-  # Nunca exponer capas privadas de Maintenance.
-  RewriteRule ^maintenance/(?:app|bootstrap|scripts|sql|storage|vendor)(?:/|$) - [F,L,NC]
+RewriteRule ^core/(?:app|bootstrap|scripts|sql|storage|vendor)(?:/|$) - [F,L,NC]
 
-  # Defensa adicional si por accidente se desplegara .git.
-  RewriteRule ^\.git(?:/|$) - [F,L,NC]
+# API central de autenticación.
 
-  # Endpoint temporal/definitivo de infraestructura del Core.
-  RewriteRule ^api/health/?$ core/public/api/health.php [L,NC]
+RewriteRule ^api/auth/(csrf|login|me|logout)/?$ core/public/api/auth/$1.php [L,NC]
+
+# Nunca exponer capas privadas de Maintenance.
+
+RewriteRule ^maintenance/(?:app|bootstrap|scripts|sql|storage|vendor)(?:/|$) - [F,L,NC]
+
+# Defensa adicional si por accidente se desplegara .git.
+
+RewriteRule ^\.git(?:/|$) - [F,L,NC]
+
+# Endpoint temporal/definitivo de infraestructura del Core.
+
+RewriteRule ^api/health/?$ core/public/api/health.php [L,NC]
 </IfModule>

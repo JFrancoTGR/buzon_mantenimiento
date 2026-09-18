@@ -7,6 +7,8 @@ use App\Core\Database;
 use App\Core\Http;
 use App\Exceptions\HttpException;
 use App\Security\SessionManager;
+use App\Services\AuditService;
+use App\Services\AuthService;
 
 const ROOT_PATH = __DIR__ . '/..';
 
@@ -47,6 +49,9 @@ SessionManager::start();
 
 $pdo = Database::connection();
 
+$auditService = new AuditService($pdo);
+$authService  = new AuthService($pdo, $auditService);
+
 set_exception_handler(
     static function (Throwable $exception) use ($debug): void {
         if ($exception instanceof HttpException) {
@@ -81,5 +86,7 @@ set_exception_handler(
 );
 
 return [
-    'pdo' => $pdo,
+    'pdo'   => $pdo,
+    'audit' => $auditService,
+    'auth'  => $authService,
 ];
