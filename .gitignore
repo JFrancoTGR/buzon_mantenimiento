@@ -1,0 +1,21 @@
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+/core/.env
+/maintenance/.env
+
+# Dependencies
+/core/vendor/
+/maintenance/vendor/
+
+# Runtime
+/core/storage/logs/*
+!/core/storage/logs/.gitkeep
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

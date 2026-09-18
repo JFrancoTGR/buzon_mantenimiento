@@ -1,0 +1,13 @@
+{
+  "name": "estrategia-urbana/tools-core",
+  "description": "Identity and authorization core for Estrategia Urbana Tools",
+  "type": "project",
+  "require": {
+    "php": ">=8.1",
+    "phpmailer/phpmailer": "^7.1"
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "sort-packages": true
+  }
+}
