@@ -23,8 +23,14 @@ RewriteRule ^$ core/public/index.php [L]
 # Login del Core.
 RewriteRule ^login/?$ core/public/login.php [L,NC]
 
-# Activación de cuentas Core.
+# Registro y activación de cuentas Core.
+RewriteRule ^register/?$ core/public/register.php [L,NC]
+RewriteRule ^verify-email/?$ core/public/verify-email.php [L,NC]
 RewriteRule ^accept-invitation/?$ core/public/accept-invitation.php [L,NC]
+
+# Compatibilidad temporal con URLs heredadas de Maintenance.
+RewriteRule ^maintenance/register\.html$ /register [R=302,L,NE,NC]
+RewriteRule ^maintenance/verify-email\.html$ /verify-email [R=302,L,NE,NC]
 
 # Administración web del Core.
 RewriteRule ^admin/users/?$ core/public/admin/users.php [L,NC]
@@ -34,7 +40,7 @@ RewriteRule ^assets/(.*)$ core/public/assets/$1 [L]
 
 # API central de autenticación.
 
-RewriteRule ^api/auth/(csrf|login|me|logout|invitation-context|accept-invitation)/?$ core/public/api/auth/$1.php [L,NC]
+RewriteRule ^api/auth/(csrf|login|me|logout|register|resend-verification|verify-email|invitation-context|accept-invitation)/?$ core/public/api/auth/$1.php [L,NC]
 
 # API del Hub.
 RewriteRule ^api/hub/apps/?$ core/public/api/hub/apps.php [L,NC]

@@ -10,6 +10,7 @@ use App\Security\SessionManager;
 use App\Services\AuditService;
 use App\Services\AuthService;
 use App\Services\HubService;
+use App\Services\RegistrationService;
 use App\Services\UserAdminService;
 use App\Services\UserInvitationService;
 use App\Services\WebAuthService;
@@ -138,6 +139,13 @@ $sharedMailer = new SharedMailer(
     ]
 );
 
+$registrationService = new RegistrationService(
+    $pdo,
+    $auditService,
+    $sharedMailer,
+    $authService
+);
+
 $userInvitationService = new UserInvitationService(
     $pdo,
     $auditService,
@@ -197,6 +205,7 @@ return [
     'auth' => $authService,
     'webAuth' => $webAuthService,
     'hub' => $hubService,
+    'registration' => $registrationService,
     'user_admin' => $userAdminService,
     'shared_mailer' => $sharedMailer,
     'user_invitations' =>

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Verificar correo | EU Tools</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/sweetalert2/11.26.25/sweetalert2.min.css">
+  <link rel="stylesheet" href="/assets/css/auth.css">
+</head>
+<body class="auth-page">
+  <main class="auth-card">
+    <div class="auth-card__brand">
+      <span class="auth-card__mark" aria-hidden="true">EU</span>
+      <span class="auth-card__brand-name">Estrategia Urbana</span>
+    </div>
+
+    <div class="verification-state" data-verification-state>
+      <div class="verification-state__spinner" aria-hidden="true"></div>
+      <h1>Verificando tu correo</h1>
+      <p class="auth-card__intro">Espera un momento mientras activamos tu cuenta de EU Tools.</p>
+    </div>
+
+    <div class="verification-state" data-verification-error hidden>
+      <div class="verification-state__icon verification-state__icon--error" aria-hidden="true">!</div>
+      <h1>No pudimos verificar el correo</h1>
+      <p class="auth-card__intro" data-verification-message>El enlace no es válido o ya venció.</p>
+      <div class="verification-state__actions">
+        <a class="button button--primary" href="/register">Volver al registro</a>
+        <a class="button button--secondary" href="/login">Ir al inicio de sesión</a>
+      </div>
+    </div>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sweetalert2/11.26.25/sweetalert2.all.min.js"></script>
+  <script type="module" src="/assets/js/modules/verify-email.js"></script>
+</body>
+</html>
