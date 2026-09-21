@@ -1,6 +1,6 @@
 <?php
 
-declare (strict_types = 1);
+declare(strict_types=1);
 
 use App\Config\Env;
 use App\Core\Database;
@@ -9,13 +9,17 @@ use App\Exceptions\HttpException;
 use App\Security\SessionManager;
 use App\Services\AuditService;
 use App\Services\AuthService;
-use App\Services\WebAuthService;
 use App\Services\HubService;
 use App\Services\UserAdminService;
+use App\Services\UserInvitationService;
+use App\Services\WebAuthService;
+use EUTools\Shared\Mail\Mailer as SharedMailer;
+use EUTools\Shared\Mail\TemplateRegistry;
 
 const ROOT_PATH = __DIR__ . '/..';
 
 $composerAutoload = ROOT_PATH . '/vendor/autoload.php';
+
 if (is_file($composerAutoload)) {
     require_once $composerAutoload;
 }
@@ -35,8 +39,9 @@ spl_autoload_register(static function (string $class): void {
 
     $relative = substr($class, strlen($prefix));
 
-    $path = ROOT_PATH . '/app/'
-    . str_replace('\\', '/', $relative)
+    $path = ROOT_PATH
+        . '/app/'
+        . str_replace('\\', '/', $relative)
         . '.php';
 
     if (is_file($path)) {
@@ -59,19 +64,105 @@ SessionManager::start();
 $pdo = Database::connection();
 
 $auditService = new AuditService($pdo);
-$authService  = new AuthService($pdo, $auditService);
-$webAuthService = new WebAuthService($authService);
+
+$authService = new AuthService(
+    $pdo,
+    $auditService
+);
+
+$webAuthService = new WebAuthService(
+    $authService
+);
+
 $hubService = new HubService($pdo);
-$userAdminService = new UserAdminService($pdo);
+
+$mailTemplateRegistry = new TemplateRegistry();
+
+$sharedMailer = new SharedMailer(
+    $pdo,
+    $mailTemplateRegistry,
+    [
+        'transport' => strtolower(
+            Env::get('MAIL_TRANSPORT', 'smtp')
+        ),
+
+        'smtp_host' => Env::get(
+            'SMTP_HOST',
+            ''
+        ),
+
+        'smtp_port' => Env::int(
+            'SMTP_PORT',
+            587
+        ),
+
+        'smtp_auth' => Env::bool(
+            'SMTP_AUTH',
+            true
+        ),
+
+        'smtp_username' => Env::get(
+            'SMTP_USERNAME',
+            ''
+        ),
+
+        'smtp_password' => Env::get(
+            'SMTP_PASSWORD',
+            ''
+        ),
+
+        'smtp_encryption' => strtolower(
+            Env::get(
+                'SMTP_ENCRYPTION',
+                'tls'
+            )
+        ),
+
+        'smtp_timeout_seconds' => Env::int(
+            'SMTP_TIMEOUT_SECONDS',
+            15
+        ),
+
+        'from_address' => Env::get(
+            'SMTP_FROM_ADDRESS',
+            ''
+        ),
+
+        'from_name' => Env::get(
+            'SMTP_FROM_NAME',
+            'EU Tools'
+        ),
+
+        'log_path' =>
+            ROOT_PATH . '/storage/logs/mail.log',
+    ]
+);
+
+$userInvitationService = new UserInvitationService(
+    $pdo,
+    $auditService,
+    $sharedMailer
+);
+
+$userAdminService = new UserAdminService(
+    $pdo,
+    $auditService,
+    $userInvitationService
+);
 
 set_exception_handler(
-    static function (Throwable $exception) use ($debug): void {
+    static function (
+        Throwable $exception
+    ) use ($debug): void {
         if ($exception instanceof HttpException) {
             Http::json([
-                'ok'    => false,
+                'ok' => false,
                 'error' => [
-                    'code'    => $exception->errorCode,
-                    'message' => $exception->getMessage(),
+                    'code' =>
+                        $exception->errorCode,
+
+                    'message' =>
+                        $exception->getMessage(),
                 ],
             ], $exception->status);
         }
@@ -79,17 +170,19 @@ set_exception_handler(
         error_log((string) $exception);
 
         $payload = [
-            'ok'    => false,
+            'ok' => false,
             'error' => [
-                'code'    => 'internal_error',
-                'message' => 'Ocurrió un error interno.',
+                'code' => 'internal_error',
+                'message' =>
+                    'Ocurrió un error interno.',
             ],
         ];
 
         if ($debug) {
             $payload['debug'] = [
-                'type'    => $exception::class,
-                'message' => $exception->getMessage(),
+                'type' => $exception::class,
+                'message' =>
+                    $exception->getMessage(),
             ];
         }
 
@@ -98,10 +191,13 @@ set_exception_handler(
 );
 
 return [
-    'pdo'   => $pdo,
+    'pdo' => $pdo,
     'audit' => $auditService,
-    'auth'  => $authService,
+    'auth' => $authService,
     'webAuth' => $webAuthService,
     'hub' => $hubService,
     'user_admin' => $userAdminService,
+    'shared_mailer' => $sharedMailer,
+    'user_invitations' =>
+        $userInvitationService,
 ];
