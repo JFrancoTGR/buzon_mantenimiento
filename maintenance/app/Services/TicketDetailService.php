@@ -1348,7 +1348,7 @@ INNER JOIN application_roles r
 
              WHERE u.status = \'active\'
                AND r.code = \'director\'
-               AND r.is_active = 1
+               
              ORDER BY u.first_name, u.last_name, u.id'
         );
 

@@ -339,7 +339,6 @@ INNER JOIN application_roles r
 WHERE u.id = :user_id
   AND u.status = \'active\'
   AND r.code = \'director\'
-               AND r.is_active = 1
              LIMIT 1'
         );
         $statement->execute(['user_id' => $userId]);
