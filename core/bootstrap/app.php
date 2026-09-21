@@ -24,7 +24,7 @@ if (is_file($composerAutoload)) {
     require_once $composerAutoload;
 }
 
-$sharedAutoload = dirname(ROOT_PATH) . '/shared/autoload.php';
+$sharedAutoload = dirname(__DIR__, 2) . '/shared/autoload.php';
 
 if (is_file($sharedAutoload)) {
     require_once $sharedAutoload;
