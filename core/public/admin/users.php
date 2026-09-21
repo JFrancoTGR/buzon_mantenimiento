@@ -1,64 +1,76 @@
 <?php
 
-declare(strict_types=1);
+    declare (strict_types = 1);
 
-use App\Services\AuthorizationService;
+    use App\Services\AuthorizationService;
 
-$services = require dirname(__DIR__, 2) . '/bootstrap/app.php';
+    $services = require dirname(__DIR__, 2) . '/bootstrap/app.php';
 
-header('Cache-Control: no-store, private');
+    header('Cache-Control: no-store, private');
 
-$user = $services['webAuth']->requireUser('/login');
+    $user = $services['webAuth']->requireUser('/login');
 
-if (!AuthorizationService::hasPermission(
+    $canManageApplications = AuthorizationService::hasPermission(
+    $user,
+    'core',
+    'application.manage'
+    );
+
+    $canViewAudit = AuthorizationService::hasPermission(
+    $user,
+    'core',
+    'audit.view'
+    );
+
+    if (! AuthorizationService::hasPermission(
     $user,
     'core',
     'user.manage'
-)) {
+    )) {
     header('Location: /', true, 302);
     exit;
-}
+    }
 
-function e(string $value): string
-{
+    function e(string $value): string
+    {
     return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
-}
+    }
 
-$firstName = (string) ($user['first_name'] ?? '');
-$lastName = (string) ($user['last_name'] ?? '');
-$fullName = trim((string) ($user['full_name'] ?? ''));
+    $firstName = (string) ($user['first_name'] ?? '');
+    $lastName  = (string) ($user['last_name'] ?? '');
+    $fullName  = trim((string) ($user['full_name'] ?? ''));
 
-if ($fullName === '') {
+    if ($fullName === '') {
     $fullName = trim($firstName . ' ' . $lastName);
-}
+    }
 
-if ($fullName === '') {
+    if ($fullName === '') {
     $fullName = 'Usuario';
-}
+    }
 
-$email = (string) ($user['email'] ?? '');
+    $email = (string) ($user['email'] ?? '');
 
-$firstInitial = $firstName !== ''
+    $firstInitial = $firstName !== ''
     ? (
-        function_exists('mb_substr')
-            ? mb_substr($firstName, 0, 1)
-            : substr($firstName, 0, 1)
+    function_exists('mb_substr')
+        ? mb_substr($firstName, 0, 1)
+        : substr($firstName, 0, 1)
     )
     : '';
 
-$lastInitial = $lastName !== ''
+    $lastInitial = $lastName !== ''
     ? (
-        function_exists('mb_substr')
-            ? mb_substr($lastName, 0, 1)
-            : substr($lastName, 0, 1)
+    function_exists('mb_substr')
+        ? mb_substr($lastName, 0, 1)
+        : substr($lastName, 0, 1)
     )
     : '';
 
-$initials = strtoupper($firstInitial . $lastInitial);
+    $initials = strtoupper($firstInitial . $lastInitial);
 
-if ($initials === '') {
+    if ($initials === '') {
     $initials = 'EU';
-}
+    }
 ?>
 <!doctype html>
 <html lang="es">

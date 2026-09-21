@@ -2,11 +2,36 @@
 
     declare (strict_types = 1);
 
+    use App\Services\AuthorizationService;
+
     $services = require dirname(__DIR__) . '/bootstrap/app.php';
 
     header('Cache-Control: no-store, private');
 
     $user = $services['webAuth']->requireUser('/login');
+
+    $canManageUsers = AuthorizationService::hasPermission(
+    $user,
+    'core',
+    'user.manage'
+    );
+
+    $canManageApplications = AuthorizationService::hasPermission(
+    $user,
+    'core',
+    'application.manage'
+    );
+
+    $canViewAudit = AuthorizationService::hasPermission(
+    $user,
+    'core',
+    'audit.view'
+    );
+
+    $showAdministration =
+    $canManageUsers
+    || $canManageApplications
+    || $canViewAudit;
 
     function e(string $value): string
     {
@@ -83,9 +108,11 @@
           </a>
         </section>
 
+        <?php if ($showAdministration): ?>
         <section class="nav-group">
           <p class="nav-group__label">Administración</p>
 
+          <?php if ($canManageUsers): ?>
           <a class="nav-link" href="/admin/users">
             <svg aria-hidden="true">
               <use href="#icon-users"></use>
@@ -93,7 +120,9 @@
 
             <span>Usuarios</span>
           </a>
+          <?php endif; ?>
 
+          <?php if ($canManageApplications): ?>
           <a class="nav-link" href="#" data-coming-soon>
             <svg aria-hidden="true">
               <use href="#icon-apps"></use>
@@ -101,7 +130,9 @@
 
             <span>Aplicaciones</span>
           </a>
+          <?php endif; ?>
 
+          <?php if ($canViewAudit): ?>
           <a class="nav-link" href="#" data-coming-soon>
             <svg aria-hidden="true">
               <use href="#icon-audit"></use>
@@ -109,7 +140,9 @@
 
             <span>Auditoría</span>
           </a>
+          <?php endif; ?>
         </section>
+        <?php endif; ?>
 
       </nav>
 
