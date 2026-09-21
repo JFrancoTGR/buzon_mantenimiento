@@ -23,6 +23,8 @@ RewriteRule ^$ core/public/index.php [L]
 # Login del Core.
 RewriteRule ^login/?$ core/public/login.php [L,NC]
 
+# Activación de cuentas Core.
+RewriteRule ^accept-invitation/?$ core/public/accept-invitation.php [L,NC]
 
 # Administración web del Core.
 RewriteRule ^admin/users/?$ core/public/admin/users.php [L,NC]
