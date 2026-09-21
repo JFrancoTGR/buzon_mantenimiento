@@ -14,6 +14,7 @@ use App\Services\AuthorizationRequestService;
 use App\Services\AuthService;
 use App\Services\DashboardService;
 use App\Services\MailerService;
+use App\Services\MaintenanceContextService;
 use App\Services\NotificationService;
 use App\Services\PasswordResetService;
 use App\Services\QuotationService;
@@ -69,6 +70,9 @@ $authService          = new AuthService($pdo, $auditService);
 $accountService       = new AccountService($pdo, $auditService, $authService);
 $mailerService        = new MailerService($pdo);
 $mailTemplateRegistry = new TemplateRegistry();
+
+$maintenanceContextService =
+new MaintenanceContextService($pdo);
 
 $sharedMailer = new SharedMailer(
     $pdo,
@@ -165,7 +169,8 @@ return [
     'auth'                    => $authService,
     'account'                 => $accountService,
     'mailer'                  => $mailerService,
-    'shared_mailer' => $sharedMailer,
+    'maintenance_context'     => $maintenanceContextService,
+    'shared_mailer'           => $sharedMailer,
     'password_reset'          => $passwordResetService,
     'user_invitations'        => $userInvitationService,
     'user_admin'              => $userAdminService,
