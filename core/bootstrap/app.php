@@ -141,7 +141,8 @@ $sharedMailer = new SharedMailer(
 $userInvitationService = new UserInvitationService(
     $pdo,
     $auditService,
-    $sharedMailer
+    $sharedMailer,
+    $authService
 );
 
 $userAdminService = new UserAdminService(

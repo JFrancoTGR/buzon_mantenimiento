@@ -360,6 +360,153 @@ final class AuthService
         SessionManager::destroyLocal();
     }
 
+    public static function validatePasswordStrength(
+        string $password
+    ): void {
+        if (strlen($password) < 12) {
+            throw new HttpException(
+                422,
+                'password_too_short',
+                'La contraseña debe tener al menos 12 caracteres.'
+            );
+        }
+
+        $classes = 0;
+
+        $classes += preg_match('/[a-z]/', $password) === 1
+            ? 1
+            : 0;
+
+        $classes += preg_match('/[A-Z]/', $password) === 1
+            ? 1
+            : 0;
+
+        $classes += preg_match('/[0-9]/', $password) === 1
+            ? 1
+            : 0;
+
+        $classes += preg_match('/[^a-zA-Z0-9]/', $password) === 1
+            ? 1
+            : 0;
+
+        if ($classes < 3) {
+            throw new HttpException(
+                422,
+                'password_too_weak',
+                'La contraseña debe combinar al menos tres tipos: minúsculas, mayúsculas, números y símbolos.'
+            );
+        }
+    }
+
+    /**
+     * Crea una sesión Core para un usuario que acaba de completar
+     * una validación segura, por ejemplo una invitación.
+     *
+     * @return array<string, mixed>
+     */
+    public function establishSessionForUser(
+        int $userId,
+        string $auditAction = 'auth.session.created'
+    ): array {
+        $statement = $this->pdo->prepare(
+            'SELECT
+            id,
+            status
+         FROM users
+         WHERE id = :id
+         LIMIT 1'
+        );
+
+        $statement->execute([
+            'id' => $userId,
+        ]);
+
+        $user = $statement->fetch();
+
+        if (
+            ! is_array($user)
+            || (string) $user['status'] !== 'active'
+        ) {
+            throw new HttpException(
+                403,
+                'account_inactive',
+                'La cuenta no está activa.'
+            );
+        }
+
+        $now = new DateTimeImmutable(
+            'now',
+            new DateTimeZone('UTC')
+        );
+
+        $currentSession = SessionManager::authData();
+
+        $this->pdo->beginTransaction();
+
+        try {
+            if ($currentSession !== null) {
+                $revokeCurrent = $this->pdo->prepare(
+                    'UPDATE user_sessions
+                 SET revoked_at = COALESCE(
+                     revoked_at,
+                     UTC_TIMESTAMP()
+                 )
+                 WHERE id = :session_id
+                   AND user_id = :user_id'
+                );
+
+                $revokeCurrent->execute([
+                    'session_id' =>
+                    $currentSession['database_session_id'],
+
+                    'user_id'    =>
+                    $currentSession['user_id'],
+                ]);
+            }
+
+            $update = $this->pdo->prepare(
+                'UPDATE users
+             SET last_login_at = UTC_TIMESTAMP(),
+                 failed_login_attempts = 0,
+                 locked_until = NULL
+             WHERE id = :id'
+            );
+
+            $update->execute([
+                'id' => $userId,
+            ]);
+
+            $databaseSessionId =
+            $this->insertDatabaseSession(
+                $userId,
+                $now
+            );
+
+            $this->audit->record(
+                $auditAction,
+                'user',
+                $userId,
+                $userId,
+                $this->getCoreApplicationId()
+            );
+
+            $this->pdo->commit();
+        } catch (Throwable $exception) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            throw $exception;
+        }
+
+        SessionManager::establish(
+            $userId,
+            $databaseSessionId
+        );
+
+        return $this->currentUser();
+    }
+
     private function insertDatabaseSession(
         int $userId,
         DateTimeImmutable $now
@@ -496,7 +643,7 @@ ORDER BY a.sort_order, a.code'
         AND p_access.code = \'access\'
   )
 ORDER BY a.code, p.code'
-);
+        );
 
         $permissionsStatement->execute(['user_id' => $userId]);
 

@@ -1,6 +1,6 @@
 <?php
 
-declare(strict_types=1);
+declare (strict_types = 1);
 
 namespace App\Services;
 
@@ -27,7 +27,8 @@ final class UserInvitationService
     public function __construct(
         private readonly PDO $pdo,
         private readonly AuditService $audit,
-        private readonly SharedMailer $mailer
+        private readonly SharedMailer $mailer,
+        private readonly AuthService $auth
     ) {
     }
 
@@ -64,7 +65,7 @@ final class UserInvitationService
             );
         }
 
-        $rawToken = bin2hex(random_bytes(32));
+        $rawToken  = bin2hex(random_bytes(32));
         $tokenHash = hash('sha256', $rawToken);
 
         $ttlHours = max(
@@ -100,12 +101,12 @@ final class UserInvitationService
         );
 
         $insert->execute([
-            'user_id' => $userId,
-            'token_hash' => $tokenHash,
-            'expires_at' => $expiresAt,
+            'user_id'            => $userId,
+            'token_hash'         => $tokenHash,
+            'expires_at'         => $expiresAt,
             'created_by_user_id' => $createdByUserId,
-            'requested_ip' => Http::clientIp(),
-            'user_agent' => Http::userAgent(),
+            'requested_ip'       => Http::clientIp(),
+            'user_agent'         => Http::userAgent(),
         ]);
 
         $tokenId = (int) $this->pdo->lastInsertId();
@@ -118,22 +119,22 @@ final class UserInvitationService
             $this->coreApplicationId(),
             null,
             [
-                'user_id' => $userId,
+                'user_id'    => $userId,
                 'expires_at' => $expiresAt,
             ]
         );
 
         return [
-            'token_id' => $tokenId,
-            'user_id' => $userId,
+            'token_id'        => $tokenId,
+            'user_id'         => $userId,
             'recipient_email' => (string) $user['email'],
-            'recipient_name' => trim(
+            'recipient_name'  => trim(
                 (string) $user['first_name']
                 . ' '
                 . (string) $user['last_name']
             ),
-            'raw_token' => $rawToken,
-            'expires_at' => $expiresAt,
+            'raw_token'       => $rawToken,
+            'expires_at'      => $expiresAt,
         ];
     }
 
@@ -143,7 +144,7 @@ final class UserInvitationService
     public function deliver(array $invitation): bool
     {
         $tokenId = (int) ($invitation['token_id'] ?? 0);
-        $userId = (int) ($invitation['user_id'] ?? 0);
+        $userId  = (int) ($invitation['user_id'] ?? 0);
 
         if ($tokenId < 1 || $userId < 1) {
             throw new LogicException(
@@ -162,10 +163,10 @@ final class UserInvitationService
         );
 
         $invitationUrl = $appUrl
-            . '/accept-invitation#token='
-            . rawurlencode(
-                (string) $invitation['raw_token']
-            );
+        . '/accept-invitation#token='
+        . rawurlencode(
+            (string) $invitation['raw_token']
+        );
 
         $appTimezone = new DateTimeZone(
             Env::get(
@@ -183,38 +184,48 @@ final class UserInvitationService
             ->setTimezone($appTimezone)
             ->format('d/m/Y H:i');
 
+        $message = new MailMessage(
+            self::APPLICATION_CODE,
+            'auth.user_invitation.requested',
+            'user-invitation',
+            $userId,
+            (string) $invitation['recipient_email'],
+            (string) $invitation['recipient_name'],
+            [
+                'invitation_url' => $invitationUrl,
+                'ttl_hours'      => $ttlHours,
+                'expires_local'  => $expiresLocal,
+            ],
+            'user_invitation_token',
+            $tokenId
+        );
+
         try {
-            $message = new MailMessage(
-                self::APPLICATION_CODE,
-                'auth.user_invitation.requested',
-                'user-invitation',
-                $userId,
-                (string) $invitation['recipient_email'],
-                (string) $invitation['recipient_name'],
-                [
-                    'invitation_url' => $invitationUrl,
-                    'ttl_hours' => $ttlHours,
-                    'expires_local' => $expiresLocal,
-                ],
-                'user_invitation_token',
-                $tokenId
-            );
-
             $this->mailer->send($message);
-
-            $this->finalizeDelivery(
-                $userId,
-                $tokenId,
-                true
-            );
-
-            return true;
         } catch (Throwable $exception) {
-            $this->finalizeDelivery(
-                $userId,
-                $tokenId,
-                false
-            );
+            try {
+                $this->revokeCurrentToken(
+                    $userId,
+                    $tokenId
+                );
+            } catch (Throwable $revokeException) {
+                $this->audit->safeRecord(
+                    'user.invitation.delivery_recovery_failed',
+                    'user_invitation_token',
+                    $tokenId,
+                    null,
+                    $this->coreApplicationId(),
+                    [
+                        'user_id' => $userId,
+                    ]
+                );
+
+                throw new RuntimeException(
+                    'No fue posible asegurar el estado de la invitación fallida.',
+                    0,
+                    $revokeException
+                );
+            }
 
             $this->audit->safeRecord(
                 'user.invitation.delivery_failed',
@@ -224,7 +235,7 @@ final class UserInvitationService
                 $this->coreApplicationId(),
                 [
                     'user_id' => $userId,
-                    'email' => (string) (
+                    'email'   => (string) (
                         $invitation['recipient_email'] ?? ''
                     ),
                 ]
@@ -232,6 +243,11 @@ final class UserInvitationService
 
             return false;
         }
+
+        return $this->finalizeSuccessfulDelivery(
+            $userId,
+            $tokenId
+        );
     }
 
     /**
@@ -275,12 +291,185 @@ final class UserInvitationService
         }
 
         return [
-            'valid' => true,
-            'first_name' => (string) $row['first_name'],
+            'valid'        => true,
+            'first_name'   => (string) $row['first_name'],
             'email_masked' => self::maskEmail(
                 (string) $row['email']
             ),
-            'expires_at' => (string) $row['expires_at'],
+            'expires_at'   => (string) $row['expires_at'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function accept(
+        string $rawToken,
+        string $password,
+        string $confirmation
+    ): array {
+        if ($password !== $confirmation) {
+            throw new HttpException(
+                422,
+                'password_confirmation_mismatch',
+                'La confirmación de contraseña no coincide.'
+            );
+        }
+
+        AuthService::validatePasswordStrength(
+            $password
+        );
+
+        $tokenHash = $this->normalizeTokenHash(
+            $rawToken
+        );
+
+        $this->pdo->beginTransaction();
+
+        try {
+            $statement = $this->pdo->prepare(
+                'SELECT
+                uit.id,
+                uit.user_id,
+                uit.expires_at,
+                uit.used_at,
+                uit.revoked_at,
+                u.first_name,
+                u.last_name,
+                u.email,
+                u.status,
+                u.password_hash,
+                u.email_verified_at
+             FROM user_invitation_tokens uit
+             INNER JOIN users u
+                ON u.id = uit.user_id
+             WHERE uit.token_hash = :token_hash
+             LIMIT 1
+             FOR UPDATE'
+            );
+
+            $statement->execute([
+                'token_hash' => $tokenHash,
+            ]);
+
+            $row = $statement->fetch();
+
+            if (! $this->isUsableInvitation($row)) {
+                throw new HttpException(
+                    410,
+                    'invitation_not_available',
+                    'Esta invitación ha expirado, ya fue utilizada o dejó de ser válida. Solicita una nueva invitación al administrador.'
+                );
+            }
+
+            $userId  = (int) $row['user_id'];
+            $tokenId = (int) $row['id'];
+
+            $updateUser = $this->pdo->prepare(
+                "UPDATE users
+             SET password_hash = :password_hash,
+                 status = 'active',
+                 must_change_password = 0,
+                 email_verified_at = UTC_TIMESTAMP(),
+                 failed_login_attempts = 0,
+                 locked_until = NULL,
+                 deactivated_at = NULL
+             WHERE id = :id
+               AND status = 'invited'
+               AND password_hash IS NULL
+               AND email_verified_at IS NULL"
+            );
+
+            $updateUser->execute([
+                'password_hash' =>
+                password_hash(
+                    $password,
+                    PASSWORD_DEFAULT
+                ),
+
+                'id'            => $userId,
+            ]);
+
+            if ($updateUser->rowCount() !== 1) {
+                throw new HttpException(
+                    409,
+                    'invitation_state_changed',
+                    'La cuenta cambió de estado. Solicita una nueva invitación.'
+                );
+            }
+
+            $consumeToken = $this->pdo->prepare(
+                'UPDATE user_invitation_tokens
+             SET used_at = UTC_TIMESTAMP()
+             WHERE id = :id
+               AND used_at IS NULL
+               AND revoked_at IS NULL'
+            );
+
+            $consumeToken->execute([
+                'id' => $tokenId,
+            ]);
+
+            if ($consumeToken->rowCount() !== 1) {
+                throw new HttpException(
+                    409,
+                    'invitation_state_changed',
+                    'La invitación ya no se encuentra disponible.'
+                );
+            }
+
+            $revokeOthers = $this->pdo->prepare(
+                'UPDATE user_invitation_tokens
+             SET revoked_at = COALESCE(
+                 revoked_at,
+                 UTC_TIMESTAMP()
+             )
+             WHERE user_id = :user_id
+               AND id <> :token_id
+               AND used_at IS NULL
+               AND revoked_at IS NULL'
+            );
+
+            $revokeOthers->execute([
+                'user_id'  => $userId,
+                'token_id' => $tokenId,
+            ]);
+
+            $this->audit->record(
+                'user.invitation.accept',
+                'user',
+                $userId,
+                $userId,
+                $this->coreApplicationId(),
+                [
+                    'status'            => 'invited',
+                    'email_verified_at' => null,
+                ],
+                [
+                    'status'            => 'active',
+                    'email_verified_at' =>
+                    'UTC_TIMESTAMP',
+                ]
+            );
+
+            $this->pdo->commit();
+        } catch (Throwable $exception) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            throw $exception;
+        }
+
+        $user = $this->auth->establishSessionForUser(
+            $userId,
+            'auth.session.user_invitation'
+        );
+
+        return [
+            'activated'    => true,
+            'user'         => $user,
+            'redirect_url' => '/',
         ];
     }
 
@@ -326,49 +515,29 @@ final class UserInvitationService
         return $count;
     }
 
-    private function finalizeDelivery(
+    private function finalizeSuccessfulDelivery(
         int $userId,
-        int $tokenId,
-        bool $delivered
-    ): void {
+        int $tokenId
+    ): bool {
         try {
-            if ($delivered) {
-                $statement = $this->pdo->prepare(
-                    'UPDATE user_invitation_tokens
-                     SET revoked_at = COALESCE(
-                         revoked_at,
-                         UTC_TIMESTAMP()
-                     )
-                     WHERE user_id = :user_id
-                       AND id <> :token_id
-                       AND used_at IS NULL
-                       AND revoked_at IS NULL'
-                );
-
-                $statement->execute([
-                    'user_id' => $userId,
-                    'token_id' => $tokenId,
-                ]);
-
-                return;
-            }
-
             $statement = $this->pdo->prepare(
                 'UPDATE user_invitation_tokens
-                 SET revoked_at = COALESCE(
-                     revoked_at,
-                     UTC_TIMESTAMP()
-                 )
-                 WHERE id = :token_id
-                   AND user_id = :user_id
-                   AND used_at IS NULL
-                   AND revoked_at IS NULL'
+             SET revoked_at = COALESCE(
+                 revoked_at,
+                 UTC_TIMESTAMP()
+             )
+             WHERE user_id = :user_id
+               AND id <> :token_id
+               AND used_at IS NULL
+               AND revoked_at IS NULL'
             );
 
             $statement->execute([
+                'user_id'  => $userId,
                 'token_id' => $tokenId,
-                'user_id' => $userId,
             ]);
+
+            return true;
         } catch (Throwable $exception) {
             $this->audit->safeRecord(
                 'user.invitation.delivery_finalize_failed',
@@ -377,11 +546,57 @@ final class UserInvitationService
                 null,
                 $this->coreApplicationId(),
                 [
-                    'user_id' => $userId,
-                    'delivered' => $delivered,
+                    'user_id'   => $userId,
+                    'delivered' => true,
                 ]
             );
+
+            try {
+                $this->revokeCurrentToken(
+                    $userId,
+                    $tokenId
+                );
+            } catch (Throwable $revokeException) {
+                $this->audit->safeRecord(
+                    'user.invitation.delivery_recovery_failed',
+                    'user_invitation_token',
+                    $tokenId,
+                    null,
+                    $this->coreApplicationId(),
+                    [
+                        'user_id' => $userId,
+                    ]
+                );
+
+                throw new RuntimeException(
+                    'No fue posible asegurar un único token de invitación válido.',
+                    0,
+                    $revokeException
+                );
+            }
+
+            return false;
         }
+    }
+
+    private function revokeCurrentToken(
+        int $userId,
+        int $tokenId
+    ): void {
+        $statement = $this->pdo->prepare(
+            'UPDATE user_invitation_tokens
+         SET revoked_at = COALESCE(
+             revoked_at,
+             UTC_TIMESTAMP()
+         )
+         WHERE id = :token_id
+           AND user_id = :user_id'
+        );
+
+        $statement->execute([
+            'token_id' => $tokenId,
+            'user_id'  => $userId,
+        ]);
     }
 
     /**
@@ -518,13 +733,13 @@ final class UserInvitationService
         );
 
         return $visible
-            . str_repeat(
-                '*',
-                max(
-                    3,
-                    strlen($local) - strlen($visible)
-                )
+        . str_repeat(
+            '*',
+            max(
+                3,
+                strlen($local) - strlen($visible)
             )
+        )
             . '@'
             . $domain;
     }
