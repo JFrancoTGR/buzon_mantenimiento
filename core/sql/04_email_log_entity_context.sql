@@ -20,9 +20,11 @@ SET NAMES utf8mb4;
 SET time_zone = '+00:00';
 
 ALTER TABLE `email_log`
-    ADD COLUMN `entity_type` VARCHAR(80) NULL AFTER `event_code`,
-    ADD COLUMN `entity_id` BIGINT UNSIGNED NULL AFTER `entity_type`,
-    ADD KEY `idx_email_log_entity`
+    ADD COLUMN IF NOT EXISTS `entity_type`
+        VARCHAR(80) NULL AFTER `event_code`,
+    ADD COLUMN IF NOT EXISTS `entity_id`
+        BIGINT UNSIGNED NULL AFTER `entity_type`,
+    ADD INDEX IF NOT EXISTS `idx_email_log_entity`
         (`application_id`, `entity_type`, `entity_id`, `created_at`);
 
 INSERT INTO `schema_migrations` (`version`, `name`)
