@@ -1333,8 +1333,19 @@ final class TicketDetailService
                 CONCAT_WS(" ", u.first_name, u.last_name) AS full_name,
                 u.email
              FROM users u
-             INNER JOIN user_roles ur ON ur.user_id = u.id
-             INNER JOIN roles r ON r.id = ur.role_id
+             
+INNER JOIN user_application_roles uar
+    ON uar.user_id = u.id
+   AND uar.revoked_at IS NULL
+INNER JOIN applications a
+    ON a.id = uar.application_id
+    AND a.code = \'maintenance\'
+   AND a.is_active = 1
+INNER JOIN application_roles r
+    ON r.id = uar.role_id
+   AND r.application_id = uar.application_id
+   AND r.is_active = 1
+
              WHERE u.status = \'active\'
                AND r.code = \'director\'
                AND r.is_active = 1
@@ -1356,9 +1367,17 @@ final class TicketDetailService
                     u.id AS author_id, CONCAT_WS(" ", u.first_name, u.last_name) AS author_name,
                     (
                         SELECT GROUP_CONCAT(DISTINCT r.name ORDER BY r.name SEPARATOR 0x2C20)
-                        FROM user_roles ur
-                        INNER JOIN roles r ON r.id = ur.role_id AND r.is_active = 1
-                        WHERE ur.user_id = u.id
+FROM user_application_roles uar
+INNER JOIN applications a
+    ON a.id = uar.application_id
+   AND a.code = \'maintenance\'
+   AND a.is_active = 1
+INNER JOIN application_roles r
+    ON r.id = uar.role_id
+   AND r.application_id = uar.application_id
+   AND r.is_active = 1
+WHERE uar.user_id = u.id
+  AND uar.revoked_at IS NULL
                     ) AS author_roles
              FROM ticket_comments c
              INNER JOIN users u ON u.id = c.author_user_id
@@ -1377,9 +1396,17 @@ final class TicketDetailService
                     u.id AS author_id, CONCAT_WS(" ", u.first_name, u.last_name) AS author_name,
                     (
                         SELECT GROUP_CONCAT(DISTINCT r.name ORDER BY r.name SEPARATOR 0x2C20)
-                        FROM user_roles ur
-                        INNER JOIN roles r ON r.id = ur.role_id AND r.is_active = 1
-                        WHERE ur.user_id = u.id
+FROM user_application_roles uar
+INNER JOIN applications a
+    ON a.id = uar.application_id
+   AND a.code = \'maintenance\'
+   AND a.is_active = 1
+INNER JOIN application_roles r
+    ON r.id = uar.role_id
+   AND r.application_id = uar.application_id
+   AND r.is_active = 1
+WHERE uar.user_id = u.id
+  AND uar.revoked_at IS NULL
                     ) AS author_roles
              FROM ticket_comments c
              INNER JOIN users u ON u.id = c.author_user_id

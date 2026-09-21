@@ -325,11 +325,20 @@ final class AuthorizationRequestService
         $statement = $this->pdo->prepare(
             'SELECT DISTINCT u.id, CONCAT_WS(" ", u.first_name, u.last_name) AS full_name, u.email
              FROM users u
-             INNER JOIN user_roles ur ON ur.user_id = u.id
-             INNER JOIN roles r ON r.id = ur.role_id
-             WHERE u.id = :user_id
-               AND u.status = \'active\'
-               AND r.code = \'director\'
+INNER JOIN user_application_roles uar
+    ON uar.user_id = u.id
+   AND uar.revoked_at IS NULL
+INNER JOIN applications a
+    ON a.id = uar.application_id
+   AND a.code = \'maintenance\'
+   AND a.is_active = 1
+INNER JOIN application_roles r
+    ON r.id = uar.role_id
+   AND r.application_id = uar.application_id
+   AND r.is_active = 1
+WHERE u.id = :user_id
+  AND u.status = \'active\'
+  AND r.code = \'director\'
                AND r.is_active = 1
              LIMIT 1'
         );

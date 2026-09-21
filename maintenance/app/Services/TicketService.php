@@ -1,10 +1,9 @@
 <?php
 
-declare(strict_types=1);
+declare (strict_types = 1);
 
 namespace App\Services;
 
-use App\Config\Env;
 use App\Core\Http;
 use App\Exceptions\HttpException;
 use finfo;
@@ -15,7 +14,7 @@ use Throwable;
 final class TicketService
 {
     private const MAX_DESCRIPTION_LENGTH = 5000;
-    private const MAX_IMAGE_PIXELS = 40000000;
+    private const MAX_IMAGE_PIXELS       = 40000000;
 
     public function __construct(
         private readonly PDO $pdo,
@@ -41,10 +40,18 @@ final class TicketService
                      AND u.status = 'active'
                      AND EXISTS (
                         SELECT 1
-                        FROM user_roles ur
-                        INNER JOIN roles r ON r.id = ur.role_id AND r.is_active = 1
-                        WHERE ur.user_id = u.id
-                          AND r.code = 'supervisor'
+                        FROM user_application_roles uar
+INNER JOIN applications a
+    ON a.id = uar.application_id
+   AND a.code = 'maintenance'
+   AND a.is_active = 1
+INNER JOIN application_roles r
+    ON r.id = uar.role_id
+   AND r.application_id = uar.application_id
+   AND r.is_active = 1
+WHERE uar.user_id = u.id
+  AND uar.revoked_at IS NULL
+  AND r.code = 'supervisor'
                      ) THEN 1
                     ELSE 0
                 END AS has_active_supervisor
@@ -55,10 +62,10 @@ final class TicketService
         );
 
         $locations = array_map(
-            static fn (array $row): array => [
-                'id' => (int) $row['id'],
-                'code' => (string) $row['code'],
-                'name' => (string) $row['name'],
+            static fn(array $row): array=> [
+                'id'                    => (int) $row['id'],
+                'code'                  => (string) $row['code'],
+                'name'                  => (string) $row['name'],
                 'has_active_supervisor' => (bool) $row['has_active_supervisor'],
             ],
             $locationsStatement->fetchAll()
@@ -72,11 +79,11 @@ final class TicketService
         );
 
         $priorities = array_map(
-            static fn (array $row): array => [
-                'id' => (int) $row['id'],
-                'code' => (string) $row['code'],
-                'name' => (string) $row['name'],
-                'weight' => (int) $row['weight'],
+            static fn(array $row): array=> [
+                'id'              => (int) $row['id'],
+                'code'            => (string) $row['code'],
+                'name'            => (string) $row['name'],
+                'weight'          => (int) $row['weight'],
                 'color_reference' => $row['color_reference'] !== null
                     ? (string) $row['color_reference']
                     : null,
@@ -95,23 +102,23 @@ final class TicketService
         }
 
         $defaultPriority = $this->setting('ticket.default_priority', 'medium');
-        $maxFiles = max(1, min(20, (int) $this->setting('upload.evidence.max_files', '8')));
-        $maxSizeMb = max(1, min(25, (int) $this->setting('upload.evidence.max_size_mb', '8')));
+        $maxFiles        = max(1, min(20, (int) $this->setting('upload.evidence.max_files', '8')));
+        $maxSizeMb       = max(1, min(25, (int) $this->setting('upload.evidence.max_size_mb', '8')));
 
         return [
-            'reporter' => [
-                'id' => (int) $user['id'],
+            'reporter'           => [
+                'id'        => (int) $user['id'],
                 'full_name' => (string) $user['full_name'],
-                'email' => (string) $user['email'],
+                'email'     => (string) $user['email'],
             ],
-            'locations' => $locations,
-            'selected_location' => $selectedLocation,
+            'locations'          => $locations,
+            'selected_location'  => $selectedLocation,
             'requested_location' => $locationCode,
-            'priorities' => $priorities,
-            'default_priority' => $defaultPriority,
-            'upload' => [
-                'max_files' => $maxFiles,
-                'max_size_mb' => $maxSizeMb,
+            'priorities'         => $priorities,
+            'default_priority'   => $defaultPriority,
+            'upload'             => [
+                'max_files'          => $maxFiles,
+                'max_size_mb'        => $maxSizeMb,
                 'allowed_mime_types' => ['image/jpeg', 'image/png'],
                 'allowed_extensions' => ['jpg', 'jpeg', 'png'],
             ],
@@ -126,8 +133,8 @@ final class TicketService
      */
     public function create(array $user, array $input, array $files): array
     {
-        $reporterId = (int) $user['id'];
-        $title = $this->normalizeRequiredText((string) ($input['title'] ?? ''), 5, 180, 'título');
+        $reporterId  = (int) $user['id'];
+        $title       = $this->normalizeRequiredText((string) ($input['title'] ?? ''), 5, 180, 'título');
         $description = $this->normalizeRequiredText(
             (string) ($input['description'] ?? ''),
             15,
@@ -151,12 +158,12 @@ final class TicketService
             throw new HttpException(422, 'invalid_priority', 'Selecciona una prioridad válida.');
         }
 
-        $location = $this->findActiveLocationWithSupervisor($locationCode);
-        $priority = $this->findActivePriority($priorityCode);
-        $newStatusId = $this->findStatusId('new');
-        $validatedFiles = $this->validateEvidenceFiles($files['evidence'] ?? null);
-        $requestId = Http::requestId();
-        $movedFiles = [];
+        $location         = $this->findActiveLocationWithSupervisor($locationCode);
+        $priority         = $this->findActivePriority($priorityCode);
+        $newStatusId      = $this->findStatusId('new');
+        $validatedFiles   = $this->validateEvidenceFiles($files['evidence'] ?? null);
+        $requestId        = Http::requestId();
+        $movedFiles       = [];
         $storageDirectory = null;
 
         $supervisor = $location['supervisor'];
@@ -205,15 +212,15 @@ final class TicketService
                  )'
             );
             $insertTicket->execute([
-                'folio' => $folio,
-                'title' => $title,
-                'description' => $description,
-                'reported_by_user_id' => $reporterId,
-                'location_id' => (int) $location['id'],
-                'specific_location' => $specificLocation,
-                'priority_id' => (int) $priority['id'],
-                'current_status_id' => $newStatusId,
-                'supervisor_user_id' => $supervisor['id'] ?? null,
+                'folio'                => $folio,
+                'title'                => $title,
+                'description'          => $description,
+                'reported_by_user_id'  => $reporterId,
+                'location_id'          => (int) $location['id'],
+                'specific_location'    => $specificLocation,
+                'priority_id'          => (int) $priority['id'],
+                'current_status_id'    => $newStatusId,
+                'supervisor_user_id'   => $supervisor['id'] ?? null,
                 'action_owner_user_id' => $supervisor['id'] ?? null,
             ]);
             $ticketId = (int) $this->pdo->lastInsertId();
@@ -238,14 +245,14 @@ final class TicketService
                  )'
             );
             $insertStatus->execute([
-                'ticket_id' => $ticketId,
-                'to_status_id' => $newStatusId,
+                'ticket_id'          => $ticketId,
+                'to_status_id'       => $newStatusId,
                 'changed_by_user_id' => $reporterId,
-                'comment' => 'Reporte creado por el usuario.',
-                'metadata_json' => json_encode([
+                'comment'            => 'Reporte creado por el usuario.',
+                'metadata_json'      => json_encode([
                     'location_code' => $location['code'],
                     'priority_code' => $priority['code'],
-                    'request_id' => $requestId,
+                    'request_id'    => $requestId,
                 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
             ]);
 
@@ -282,9 +289,9 @@ final class TicketService
                     null,
                     [
                         'attachment_type' => 'evidence',
-                        'original_name' => (string) $attachmentRow['original_name'],
-                        'mime_type' => (string) $attachmentRow['mime_type'],
-                        'size_bytes' => (int) $attachmentRow['size_bytes'],
+                        'original_name'   => (string) $attachmentRow['original_name'],
+                        'mime_type'       => (string) $attachmentRow['mime_type'],
+                        'size_bytes'      => (int) $attachmentRow['size_bytes'],
                     ],
                     $requestId
                 );
@@ -311,15 +318,15 @@ final class TicketService
                 $ticketId,
                 null,
                 [
-                    'folio' => $folio,
-                    'location_id' => (int) $location['id'],
-                    'location_code' => $location['code'],
-                    'specific_location' => $specificLocation,
-                    'priority_id' => (int) $priority['id'],
-                    'priority_code' => $priority['code'],
-                    'status' => 'new',
+                    'folio'              => $folio,
+                    'location_id'        => (int) $location['id'],
+                    'location_code'      => $location['code'],
+                    'specific_location'  => $specificLocation,
+                    'priority_id'        => (int) $priority['id'],
+                    'priority_code'      => $priority['code'],
+                    'status'             => 'new',
                     'supervisor_user_id' => $supervisor['id'] ?? null,
-                    'attachments' => count($attachmentRows),
+                    'attachments'        => count($attachmentRows),
                 ],
                 $requestId
             );
@@ -334,7 +341,7 @@ final class TicketService
         }
 
         $emailResults = [
-            'reporter' => false,
+            'reporter'   => false,
             'supervisor' => false,
         ];
 
@@ -393,33 +400,33 @@ final class TicketService
         }
 
         return [
-            'ticket' => [
-                'id' => $ticketId,
-                'folio' => $folio,
-                'title' => $title,
-                'location' => [
-                    'id' => (int) $location['id'],
-                    'code' => (string) $location['code'],
-                    'name' => (string) $location['name'],
+            'ticket'         => [
+                'id'                => $ticketId,
+                'folio'             => $folio,
+                'title'             => $title,
+                'location'          => [
+                    'id'                => (int) $location['id'],
+                    'code'              => (string) $location['code'],
+                    'name'              => (string) $location['name'],
                     'specific_location' => $specificLocation,
                 ],
-                'priority' => [
-                    'id' => (int) $priority['id'],
+                'priority'          => [
+                    'id'   => (int) $priority['id'],
                     'code' => (string) $priority['code'],
                     'name' => (string) $priority['name'],
                 ],
-                'status' => [
+                'status'            => [
                     'code' => 'new',
                     'name' => 'Nuevo',
                 ],
-                'supervisor' => $supervisor === null ? null : [
-                    'id' => (int) $supervisor['id'],
+                'supervisor'        => $supervisor === null ? null : [
+                    'id'        => (int) $supervisor['id'],
                     'full_name' => (string) $supervisor['full_name'],
                 ],
                 'attachments_count' => count($validatedFiles),
             ],
             'email_delivery' => $emailResults,
-            'warning' => null,
+            'warning'        => null,
         ];
     }
 
@@ -440,10 +447,18 @@ final class TicketService
                 CASE
                     WHEN EXISTS (
                         SELECT 1
-                        FROM user_roles ur
-                        INNER JOIN roles r ON r.id = ur.role_id AND r.is_active = 1
-                        WHERE ur.user_id = u.id
-                          AND r.code = 'supervisor'
+                        FROM user_application_roles uar
+INNER JOIN applications a
+    ON a.id = uar.application_id
+   AND a.code = 'maintenance'
+   AND a.is_active = 1
+INNER JOIN application_roles r
+    ON r.id = uar.role_id
+   AND r.application_id = uar.application_id
+   AND r.is_active = 1
+WHERE uar.user_id = u.id
+  AND uar.revoked_at IS NULL
+  AND r.code = 'supervisor'
                     ) THEN 1
                     ELSE 0
                 END AS supervisor_has_role
@@ -455,7 +470,7 @@ final class TicketService
         $statement->execute(['code' => $code]);
         $row = $statement->fetch();
 
-        if (!is_array($row)) {
+        if (! is_array($row)) {
             throw new HttpException(422, 'invalid_location', 'La ubicación seleccionada no está disponible.');
         }
 
@@ -466,16 +481,16 @@ final class TicketService
             && (bool) $row['supervisor_has_role']
         ) {
             $supervisor = [
-                'id' => (int) $row['supervisor_id'],
+                'id'        => (int) $row['supervisor_id'],
                 'full_name' => trim((string) $row['supervisor_first_name'] . ' ' . (string) $row['supervisor_last_name']),
-                'email' => (string) $row['supervisor_email'],
+                'email'     => (string) $row['supervisor_email'],
             ];
         }
 
         return [
-            'id' => (int) $row['id'],
-            'code' => (string) $row['code'],
-            'name' => (string) $row['name'],
+            'id'         => (int) $row['id'],
+            'code'       => (string) $row['code'],
+            'name'       => (string) $row['name'],
             'supervisor' => $supervisor,
         ];
     }
@@ -492,14 +507,14 @@ final class TicketService
         $statement->execute(['code' => $code]);
         $row = $statement->fetch();
 
-        if (!is_array($row)) {
+        if (! is_array($row)) {
             throw new HttpException(422, 'invalid_priority', 'La prioridad seleccionada no está disponible.');
         }
 
         return [
-            'id' => (int) $row['id'],
-            'code' => (string) $row['code'],
-            'name' => (string) $row['name'],
+            'id'     => (int) $row['id'],
+            'code'   => (string) $row['code'],
+            'name'   => (string) $row['name'],
             'weight' => (int) $row['weight'],
         ];
     }
@@ -519,8 +534,6 @@ final class TicketService
         return (int) $id;
     }
 
-
-
     private function nextFolio(): string
     {
         $prefix = strtoupper(trim($this->setting('ticket.folio_prefix', 'MNT')));
@@ -528,7 +541,7 @@ final class TicketService
             $prefix = 'MNT';
         }
 
-        $year = (int) gmdate('Y');
+        $year   = (int) gmdate('Y');
         $ensure = $this->pdo->prepare(
             'INSERT INTO folio_sequences (sequence_code, sequence_year, last_value)
              VALUES (:sequence_code, :sequence_year, 0)
@@ -556,13 +569,13 @@ final class TicketService
         }
 
         $nextValue = (int) $lastValue + 1;
-        $update = $this->pdo->prepare(
+        $update    = $this->pdo->prepare(
             'UPDATE folio_sequences
              SET last_value = :last_value, updated_at = UTC_TIMESTAMP()
              WHERE sequence_code = :sequence_code AND sequence_year = :sequence_year'
         );
         $update->execute([
-            'last_value' => $nextValue,
+            'last_value'    => $nextValue,
             'sequence_code' => $prefix,
             'sequence_year' => $year,
         ]);
@@ -595,11 +608,11 @@ final class TicketService
              )'
         );
         $statement->execute([
-            'ticket_id' => $ticketId,
-            'assignment_type' => $assignmentType,
-            'new_user_id' => $newUserId,
+            'ticket_id'           => $ticketId,
+            'assignment_type'     => $assignmentType,
+            'new_user_id'         => $newUserId,
             'assigned_by_user_id' => $assignedByUserId,
-            'comment' => $comment,
+            'comment'             => $comment,
         ]);
     }
 
@@ -635,13 +648,13 @@ final class TicketService
              )'
         );
         $statement->execute([
-            'user_id' => $userId,
-            'ticket_id' => $ticketId,
-            'actor_user_id' => $actorUserId,
-            'type' => $type,
-            'title' => $title,
-            'message' => $message,
-            'action_url' => $actionUrl,
+            'user_id'           => $userId,
+            'ticket_id'         => $ticketId,
+            'actor_user_id'     => $actorUserId,
+            'type'              => $type,
+            'title'             => $title,
+            'message'           => $message,
+            'action_url'        => $actionUrl,
             'deduplication_key' => $deduplicationKey,
         ]);
     }
@@ -652,8 +665,8 @@ final class TicketService
      */
     private function validateEvidenceFiles(mixed $rawFiles): array
     {
-        $files = $this->normalizeFilesArray($rawFiles);
-        $maxFiles = max(1, min(20, (int) $this->setting('upload.evidence.max_files', '8')));
+        $files        = $this->normalizeFilesArray($rawFiles);
+        $maxFiles     = max(1, min(20, (int) $this->setting('upload.evidence.max_files', '8')));
         $maxSizeBytes = max(1, min(25, (int) $this->setting('upload.evidence.max_size_mb', '8'))) * 1024 * 1024;
 
         if ($files === []) {
@@ -664,11 +677,11 @@ final class TicketService
             throw new HttpException(422, 'too_many_files', "Puedes adjuntar como máximo {$maxFiles} fotografías.");
         }
 
-        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $finfo     = new finfo(FILEINFO_MIME_TYPE);
         $validated = [];
-        $allowed = [
+        $allowed   = [
             'image/jpeg' => 'jpg',
-            'image/png' => 'png',
+            'image/png'  => 'png',
         ];
 
         foreach ($files as $index => $file) {
@@ -682,8 +695,8 @@ final class TicketService
             }
 
             $tmpName = (string) ($file['tmp_name'] ?? '');
-            $size = (int) ($file['size'] ?? 0);
-            if ($tmpName === '' || !is_uploaded_file($tmpName)) {
+            $size    = (int) ($file['size'] ?? 0);
+            if ($tmpName === '' || ! is_uploaded_file($tmpName)) {
                 throw new HttpException(422, 'invalid_upload', 'Uno de los archivos no fue recibido correctamente.');
             }
 
@@ -697,12 +710,12 @@ final class TicketService
             }
 
             $mimeType = (string) $finfo->file($tmpName);
-            if (!array_key_exists($mimeType, $allowed)) {
+            if (! array_key_exists($mimeType, $allowed)) {
                 throw new HttpException(422, 'invalid_file_type', 'Solo se permiten imágenes JPG, JPEG y PNG.');
             }
 
             $imageInfo = @getimagesize($tmpName);
-            if (!is_array($imageInfo) || !isset($imageInfo[0], $imageInfo[1])) {
+            if (! is_array($imageInfo) || ! isset($imageInfo[0], $imageInfo[1])) {
                 throw new HttpException(422, 'invalid_image', 'Uno de los archivos no es una imagen válida.');
             }
 
@@ -718,13 +731,13 @@ final class TicketService
             }
 
             $validated[] = [
-                'tmp_name' => $tmpName,
-                'size' => $size,
-                'mime_type' => $mimeType,
-                'extension' => $allowed[$mimeType],
+                'tmp_name'      => $tmpName,
+                'size'          => $size,
+                'mime_type'     => $mimeType,
+                'extension'     => $allowed[$mimeType],
                 'original_name' => $originalName,
-                'width' => (int) $imageInfo[0],
-                'height' => (int) $imageInfo[1],
+                'width'         => (int) $imageInfo[0],
+                'height'        => (int) $imageInfo[1],
             ];
         }
 
@@ -737,11 +750,11 @@ final class TicketService
      */
     private function normalizeFilesArray(mixed $rawFiles): array
     {
-        if (!is_array($rawFiles) || !isset($rawFiles['name'])) {
+        if (! is_array($rawFiles) || ! isset($rawFiles['name'])) {
             return [];
         }
 
-        if (!is_array($rawFiles['name'])) {
+        if (! is_array($rawFiles['name'])) {
             return [(array) $rawFiles];
         }
 
@@ -753,11 +766,11 @@ final class TicketService
             }
 
             $files[] = [
-                'name' => $name,
-                'type' => $rawFiles['type'][$index] ?? null,
+                'name'     => $name,
+                'type'     => $rawFiles['type'][$index] ?? null,
                 'tmp_name' => $rawFiles['tmp_name'][$index] ?? null,
-                'error' => $error,
-                'size' => $rawFiles['size'][$index] ?? 0,
+                'error'    => $error,
+                'size'     => $rawFiles['size'][$index] ?? 0,
             ];
         }
 
@@ -773,7 +786,7 @@ final class TicketService
         $relativeDirectory = sprintf('uploads/tickets/%s/%s/%d', gmdate('Y'), gmdate('m'), $ticketId);
         $absoluteDirectory = ROOT_PATH . '/storage/' . $relativeDirectory;
 
-        if (!is_dir($absoluteDirectory) && !mkdir($absoluteDirectory, 0770, true) && !is_dir($absoluteDirectory)) {
+        if (! is_dir($absoluteDirectory) && ! mkdir($absoluteDirectory, 0770, true) && ! is_dir($absoluteDirectory)) {
             throw new RuntimeException('No fue posible preparar el almacenamiento de evidencias.');
         }
 
@@ -807,45 +820,45 @@ final class TicketService
              )'
         );
 
-        $rows = [];
+        $rows       = [];
         $movedFiles = [];
 
         try {
             foreach ($validatedFiles as $file) {
-                $storedName = bin2hex(random_bytes(20)) . '.' . $file['extension'];
+                $storedName   = bin2hex(random_bytes(20)) . '.' . $file['extension'];
                 $absolutePath = $absoluteDirectory . '/' . $storedName;
                 $relativePath = $relativeDirectory . '/' . $storedName;
 
-                if (!move_uploaded_file((string) $file['tmp_name'], $absolutePath)) {
+                if (! move_uploaded_file((string) $file['tmp_name'], $absolutePath)) {
                     throw new RuntimeException('No fue posible guardar una de las fotografías.');
                 }
 
                 @chmod($absolutePath, 0660);
                 $movedFiles[] = $absolutePath;
-                $hash = hash_file('sha256', $absolutePath);
+                $hash         = hash_file('sha256', $absolutePath);
                 if ($hash === false) {
                     throw new RuntimeException('No fue posible calcular la integridad de una fotografía.');
                 }
 
                 $insert->execute([
-                    'ticket_id' => $ticketId,
+                    'ticket_id'           => $ticketId,
                     'uploaded_by_user_id' => $userId,
-                    'original_name' => $file['original_name'],
-                    'stored_name' => $storedName,
-                    'storage_path' => $relativePath,
-                    'mime_type' => $file['mime_type'],
-                    'extension' => $file['extension'],
-                    'size_bytes' => $file['size'],
-                    'sha256_hash' => $hash,
+                    'original_name'       => $file['original_name'],
+                    'stored_name'         => $storedName,
+                    'storage_path'        => $relativePath,
+                    'mime_type'           => $file['mime_type'],
+                    'extension'           => $file['extension'],
+                    'size_bytes'          => $file['size'],
+                    'sha256_hash'         => $hash,
                 ]);
 
                 $rows[] = [
-                    'id' => (int) $this->pdo->lastInsertId(),
-                    'stored_name' => $storedName,
-                    'storage_path' => $relativePath,
+                    'id'            => (int) $this->pdo->lastInsertId(),
+                    'stored_name'   => $storedName,
+                    'storage_path'  => $relativePath,
                     'original_name' => (string) $file['original_name'],
-                    'mime_type' => (string) $file['mime_type'],
-                    'size_bytes' => (int) $file['size'],
+                    'mime_type'     => (string) $file['mime_type'],
+                    'size_bytes'    => (int) $file['size'],
                 ];
             }
         } catch (Throwable $exception) {
@@ -885,7 +898,7 @@ final class TicketService
 
     private function normalizeRequiredText(string $value, int $min, int $max, string $label): string
     {
-        $value = trim(preg_replace('/\R/u', "\n", $value) ?? $value);
+        $value  = trim(preg_replace('/\R/u', "\n", $value) ?? $value);
         $length = $this->textLength($value);
 
         if ($length < $min) {
