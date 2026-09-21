@@ -86,7 +86,7 @@
         <section class="nav-group">
           <p class="nav-group__label">Administración</p>
 
-          <a class="nav-link" href="#" data-coming-soon>
+          <a class="nav-link" href="/admin/users">
             <svg aria-hidden="true">
               <use href="#icon-users"></use>
             </svg>

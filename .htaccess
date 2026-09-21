@@ -19,6 +19,9 @@ RewriteRule ^$ core/public/index.php [L]
 # Login del Core.
 RewriteRule ^login/?$ core/public/login.php [L,NC]
 
+# Administración web del Core.
+RewriteRule ^admin/users/?$ core/public/admin/users.php [L,NC]
+
 # Assets públicos del Core.
 RewriteRule ^assets/(.*)$ core/public/assets/$1 [L]
 

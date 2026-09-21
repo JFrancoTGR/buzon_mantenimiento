@@ -162,17 +162,6 @@
 }
 
 .swal2-confirm.app-alert__confirm {
-  border-radius: 0;
-  background: var(--primary) !important;
-  font-family: inherit;
-  font-weight: 700;
-}
-
-.swal2-confirm.app-alert__confirm:hover {
-  background: var(--primary-dark) !important;
-}
-
-.swal2-confirm.app-alert__confirm {
   min-height: 40px;
   padding: 10px 18px;
   border: 0;
