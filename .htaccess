@@ -9,6 +9,10 @@ Require all denied
 <IfModule mod_rewrite.c>
   RewriteEngine On
 
+# Nunca exponer infraestructura compartida de EU Tools.
+
+RewriteRule ^shared(?:/|$) - [F,L,NC]
+
 # Nunca exponer capas privadas del Core.
 
 RewriteRule ^core/(?:app|bootstrap|scripts|sql|storage|vendor)(?:/|$) - [F,L,NC]

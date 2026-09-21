@@ -31,6 +31,12 @@ if (is_file($composerAutoload)) {
     require_once $composerAutoload;
 }
 
+$sharedAutoload = dirname(ROOT_PATH) . '/shared/autoload.php';
+
+if (is_file($sharedAutoload)) {
+    require_once $sharedAutoload;
+}
+
 spl_autoload_register(static function (string $class): void {
     $prefix = 'App\\';
     if (!str_starts_with($class, $prefix)) {
