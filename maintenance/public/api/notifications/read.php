@@ -8,7 +8,7 @@ use App\Services\AuthorizationService;
 
 $services = require dirname(__DIR__, 3) . '/bootstrap/app.php';
 Http::requireMethod('POST');
-$user = $services['auth']->currentUser();
+$user = $services['maintenance_context']->currentUser();
 AuthorizationService::requirePasswordChanged($user);
 Csrf::validate();
 $input = Http::jsonInput(4096);

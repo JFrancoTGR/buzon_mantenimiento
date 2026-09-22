@@ -9,19 +9,42 @@ DirectoryIndex public/index.php
   RewriteEngine On
   RewriteBase /maintenance/
 
-  # Impide acceso HTTP a las capas privadas del proyecto.
+  # =========================================================
+  # Flujos de identidad migrados al Core
+  # =========================================================
+
+  RewriteRule ^register\.html$ /register [R=302,L,NE,NC]
+  RewriteRule ^verify-email\.html$ /verify-email [R=302,L,NE,NC]
+
+  # =========================================================
+  # Protección de capas privadas
+  # =========================================================
+
   RewriteRule ^(?:app|bootstrap|scripts|sql|storage|vendor)(?:/|$) - [F,L,NC]
 
-  # Evita ciclos cuando Apache ya realizó la reescritura interna.
+  # =========================================================
+  # Evita ciclos sobre reescrituras internas
+  # =========================================================
+
   RewriteRule ^public(?:/|$) - [L]
 
-  # Rutas públicas explícitas.
+  # =========================================================
+  # Assets y API propios de Maintenance
+  # =========================================================
+
   RewriteRule ^assets/(.*)$ public/assets/$1 [L,NC]
   RewriteRule ^api/(.*)$ public/api/$1 [L,NC]
 
-  # Páginas públicas actuales.
-  RewriteRule ^(login|register|verify-email|accept-invitation|change-password|dashboard|new-ticket|ticket|tickets|users|profile|forgot-password|reset-password)\.html$ public/$1.html [L,NC]
+  # =========================================================
+  # Páginas públicas propias de Maintenance
+  # =========================================================
 
-  # Entrada principal.
+  RewriteRule ^(login|accept-invitation|change-password|dashboard|new-ticket|ticket|tickets|users|profile|forgot-password|reset-password)\.html$ public/$1.html [L,NC]
+
+  # =========================================================
+  # Entrada principal de Maintenance
+  # =========================================================
+
   RewriteRule ^$ public/index.php [L]
+
 </IfModule>

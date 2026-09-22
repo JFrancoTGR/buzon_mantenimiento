@@ -8,7 +8,7 @@ use App\Security\Csrf;
 $services = require dirname(__DIR__, 3) . '/bootstrap/app.php';
 
 Http::requireMethod('GET');
-$user = $services['auth']->currentUser();
+$user = $services['maintenance_context']->currentUser();
 
 Http::json([
     'ok' => true,

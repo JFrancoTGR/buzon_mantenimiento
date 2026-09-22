@@ -11,7 +11,7 @@ $services = require dirname(__DIR__, 3) . '/bootstrap/app.php';
 Http::requireMethod('POST');
 Csrf::validate($_POST);
 
-$user = $services['auth']->currentUser();
+$user = $services['maintenance_context']->currentUser();
 AuthorizationService::requirePasswordChanged($user);
 AuthorizationService::requirePermission($user, 'ticket.create');
 

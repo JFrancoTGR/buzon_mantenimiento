@@ -12,7 +12,7 @@ Http::requireMethod('POST');
 $input = Http::jsonInput();
 Csrf::validate($input);
 
-$user = $services['auth']->currentUser();
+$user = $services['maintenance_context']->currentUser();
 AuthorizationService::requirePasswordChanged($user);
 AuthorizationService::requirePermission($user, 'ticket.request_authorization');
 AuthorizationService::requirePermission($user, 'ticket.assign.director');
