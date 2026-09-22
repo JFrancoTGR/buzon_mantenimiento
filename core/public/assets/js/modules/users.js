@@ -22,7 +22,15 @@ const inviteMessage = document.querySelector('[data-invite-message]');
 const inviteSubmit = document.querySelector('[data-invite-submit]');
 const inviteTtl = document.querySelector('[data-invite-ttl]');
 
+const accessModal = document.querySelector('[data-access-modal]');
+const accessUserSummary = document.querySelector('[data-access-user-summary]');
+const accessApplications = document.querySelector('[data-access-applications]');
+const accessMessage = document.querySelector('[data-access-message]');
+
+const currentUserId = Number(document.body.dataset.currentUserId || 0);
+
 let context = null;
+let usersById = new Map();
 let page = 1;
 let lastPagination = null;
 
@@ -187,12 +195,25 @@ function bindEvents() {
     element.addEventListener('click', closeInviteModal);
   });
 
+  document.querySelectorAll('[data-close-access]').forEach((element) => {
+    element.addEventListener('click', closeAccessModal);
+  });
+
   inviteForm?.addEventListener('submit', submitInvitation);
   tableBody?.addEventListener('click', handleTableAction);
+  accessApplications?.addEventListener('change', handleAccessEditorChange);
+  accessApplications?.addEventListener('click', handleAccessEditorClick);
 
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && inviteModal && !inviteModal.hidden) {
+    if (event.key !== 'Escape') return;
+
+    if (inviteModal && !inviteModal.hidden) {
       closeInviteModal();
+      return;
+    }
+
+    if (accessModal && !accessModal.hidden) {
+      closeAccessModal();
     }
   });
 }
@@ -236,6 +257,9 @@ async function loadUsers() {
 
 function renderUsers(items) {
   tableBody?.replaceChildren();
+  usersById = new Map(
+    items.map((user) => [Number(user.id), user]),
+  );
 
   if (!items.length) {
     if (tableBody) {
@@ -288,7 +312,7 @@ function createUserRow(user) {
   created.textContent = formatDateTime(user.created_at);
 
   const actions = document.createElement('td');
-  actions.append(createInvitationActions(user));
+  actions.append(createUserActions(user));
 
   row.append(
     identity,
@@ -352,23 +376,24 @@ function createInvitation(invitation) {
   return wrapper;
 }
 
-function createInvitationActions(user) {
+function createUserActions(user) {
   const wrapper = document.createElement('div');
   wrapper.className = 'users-actions';
 
-  if (user.status !== 'invited') {
-    wrapper.append(createActionsEmpty());
-    return wrapper;
+  if (user.status === 'invited') {
+    const invitationStatus = user.invitation?.status || null;
+
+    if (invitationStatus !== 'used') {
+      wrapper.append(actionButton('Reenviar', 'resend', user.id));
+    }
+
+    if (invitationStatus === 'pending') {
+      wrapper.append(actionButton('Revocar', 'revoke', user.id, true));
+    }
   }
 
-  const invitationStatus = user.invitation?.status || null;
-
-  if (invitationStatus !== 'used') {
-    wrapper.append(actionButton('Reenviar', 'resend', user.id));
-  }
-
-  if (invitationStatus === 'pending') {
-    wrapper.append(actionButton('Revocar', 'revoke', user.id, true));
+  if (Boolean(context?.can_manage_access)) {
+    wrapper.append(actionButton('Accesos', 'access', user.id));
   }
 
   if (!wrapper.children.length) {
@@ -396,6 +421,317 @@ function actionButton(label, action, userId, danger = false) {
   return button;
 }
 
+function openAccessModal(userId) {
+  if (!accessModal || !accessApplications) return;
+
+  const user = usersById.get(Number(userId));
+
+  if (!user || !Boolean(context?.can_manage_access)) {
+    return;
+  }
+
+  clearAccessMessage();
+
+  if (accessUserSummary) {
+    const name = user.full_name || user.email || 'Usuario';
+    accessUserSummary.textContent =
+      `${name} · ${user.email || 'Sin correo'}`;
+  }
+
+  renderAccessEditor(user);
+
+  accessModal.hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+
+function closeAccessModal() {
+  if (!accessModal) return;
+
+  accessModal.hidden = true;
+  document.body.style.overflow = '';
+  clearAccessMessage();
+
+  if (accessApplications) {
+    accessApplications.replaceChildren();
+  }
+}
+
+function renderAccessEditor(user) {
+  if (!accessApplications) return;
+
+  accessApplications.replaceChildren();
+
+  const applications = Array.isArray(context?.applications)
+    ? context.applications
+    : [];
+
+  let rendered = 0;
+
+  applications.forEach((application) => {
+    const currentAccess = findUserApplicationAccess(user, application.code);
+
+    if (!application.is_active && !currentAccess) {
+      return;
+    }
+
+    accessApplications.append(
+      createAccessEditorRow(user, application, currentAccess),
+    );
+
+    rendered += 1;
+  });
+
+  if (rendered === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'users-access-editor__empty';
+    empty.textContent =
+      'No hay aplicaciones disponibles para administrar.';
+    accessApplications.append(empty);
+  }
+}
+
+function createAccessEditorRow(user, application, currentAccess) {
+  const row = document.createElement('div');
+  row.className = 'users-access-editor__row';
+
+  const applicationInfo = document.createElement('div');
+  applicationInfo.className = 'users-access-editor__application';
+
+  const applicationName = document.createElement('strong');
+  applicationName.textContent = application.name || application.code;
+
+  const currentRoleName =
+    currentAccess?.role?.name
+    || currentAccess?.role?.code
+    || 'Sin acceso';
+
+  const current = document.createElement('span');
+  current.textContent = `Actual: ${currentRoleName}`;
+
+  applicationInfo.append(applicationName, current);
+
+  const isSelfCore =
+    Number(user.id) === currentUserId
+    && application.code === 'core';
+
+  const currentRoleCode = currentAccess?.role?.code || '';
+
+  const field = document.createElement('label');
+  field.className = 'users-field';
+
+  const fieldLabel = document.createElement('span');
+  fieldLabel.textContent = 'Rol';
+
+  const select = document.createElement('select');
+  select.dataset.accessRole = '';
+  select.dataset.applicationCode = application.code;
+  select.dataset.originalRoleCode = currentRoleCode;
+  select.dataset.userId = String(user.id);
+
+  const empty = document.createElement('option');
+  empty.value = '';
+  empty.textContent = 'Sin acceso';
+  select.append(empty);
+
+  const roles = Array.isArray(application.roles)
+    ? [...application.roles]
+    : [];
+
+  if (
+    currentAccess?.role?.code
+    && !roles.some((role) => role.code === currentAccess.role.code)
+  ) {
+    roles.unshift({
+      code: currentAccess.role.code,
+      name: currentAccess.role.name || currentAccess.role.code,
+    });
+  }
+
+  roles.forEach((role) => {
+    const option = document.createElement('option');
+    option.value = role.code;
+    option.textContent = role.name || role.code;
+    select.append(option);
+  });
+
+  select.value = currentRoleCode;
+
+  if (isSelfCore) {
+    select.disabled = true;
+  }
+
+  if (!application.is_active && currentRoleCode) {
+    Array.from(select.options).forEach((option) => {
+      if (option.value !== '' && option.value !== currentRoleCode) {
+        option.disabled = true;
+      }
+    });
+  }
+
+  field.append(fieldLabel, select);
+
+  const action = document.createElement('button');
+  action.type = 'button';
+  action.className =
+    'button button--secondary users-access-editor__apply';
+  action.dataset.accessApply = '';
+  action.textContent = 'Aplicar';
+  action.disabled = true;
+
+  row.append(applicationInfo, field, action);
+
+  if (isSelfCore || !application.is_active) {
+    const note = document.createElement('p');
+    note.className = 'users-access-editor__restriction';
+
+    note.textContent = isSelfCore
+      ? 'Tu propio acceso administrativo a Core no puede modificarse desde aquí.'
+      : 'La aplicación está inactiva. Solo puedes conservar o revocar el acceso actual.';
+
+    row.append(note);
+  }
+
+  return row;
+}
+
+function findUserApplicationAccess(user, applicationCode) {
+  return (user.applications || []).find(
+    (application) => application.code === applicationCode,
+  ) || null;
+}
+
+function handleAccessEditorChange(event) {
+  const select = event.target.closest('[data-access-role]');
+
+  if (!select) return;
+
+  const row = select.closest('.users-access-editor__row');
+  const button = row?.querySelector('[data-access-apply]');
+
+  if (!button) return;
+
+  button.disabled =
+    select.disabled
+    || select.value === select.dataset.originalRoleCode;
+}
+
+async function handleAccessEditorClick(event) {
+  const button = event.target.closest('[data-access-apply]');
+
+  if (!button || button.disabled) return;
+
+  const row = button.closest('.users-access-editor__row');
+  const select = row?.querySelector('[data-access-role]');
+
+  if (!select) return;
+
+  await applyAccessChange(select, button);
+}
+
+async function applyAccessChange(select, button) {
+  const userId = Number(select.dataset.userId);
+  const applicationCode = select.dataset.applicationCode || '';
+  const originalRoleCode = select.dataset.originalRoleCode || '';
+  const nextRoleCode = select.value || '';
+
+  if (!userId || !applicationCode || originalRoleCode === nextRoleCode) {
+    return;
+  }
+
+  const user = usersById.get(userId);
+  const application = (context?.applications || []).find(
+    (item) => item.code === applicationCode,
+  );
+
+  const userName =
+    user?.full_name
+    || user?.email
+    || 'este usuario';
+
+  const applicationName = application?.name || applicationCode;
+
+  let title = 'Cambiar rol';
+  let message =
+    `Se actualizará el acceso de ${userName} en ${applicationName}.`;
+
+  if (!originalRoleCode && nextRoleCode) {
+    title = 'Asignar acceso';
+    message =
+      `Se asignará acceso a ${applicationName} para ${userName}.`;
+  }
+
+  if (originalRoleCode && !nextRoleCode) {
+    title = 'Revocar acceso';
+    message =
+      `Se revocará el acceso de ${userName} a ${applicationName}.`;
+  }
+
+  const accepted = await confirmAction(
+    title,
+    `${message} Las sesiones activas de la cuenta se cerrarán.`,
+  );
+
+  if (!accepted) return;
+
+  clearAccessMessage();
+
+  button.disabled = true;
+  select.disabled = true;
+  button.textContent = 'Aplicando…';
+
+  try {
+    const payload = await apiRequest('/api/admin/users/update-access', {
+      method: 'POST',
+      body: JSON.stringify({
+        user_id: userId,
+        application_code: applicationCode,
+        role_code: nextRoleCode || null,
+      }),
+    });
+
+    const changed = payload.data?.changed !== false;
+
+    closeAccessModal();
+
+    await notify(
+      changed ? 'Acceso actualizado' : 'Sin cambios',
+      changed
+        ? 'La asignación de acceso se actualizó correctamente.'
+        : 'La cuenta ya tenía esa configuración de acceso.',
+      changed ? 'success' : 'info',
+    );
+
+    await loadUsers();
+  } catch (error) {
+    if (Number(error?.status) === 401) {
+      window.location.replace('/login');
+      return;
+    }
+
+    showAccessMessage(
+      error?.message || 'No fue posible actualizar el acceso.',
+    );
+
+    select.disabled = false;
+    button.disabled =
+      select.value === select.dataset.originalRoleCode;
+    button.textContent = 'Aplicar';
+  }
+}
+
+function showAccessMessage(message) {
+  if (!accessMessage) return;
+
+  accessMessage.textContent = message;
+  accessMessage.hidden = false;
+}
+
+function clearAccessMessage() {
+  if (!accessMessage) return;
+
+  accessMessage.textContent = '';
+  accessMessage.hidden = true;
+}
 function createAccessList(applications) {
   const wrapper = document.createElement('div');
   wrapper.className = 'users-access-list';
@@ -451,6 +787,10 @@ async function handleTableAction(event) {
     if (action === 'revoke') {
       await revokeInvitation(userId);
     }
+
+    if (action === 'access') {
+      openAccessModal(userId);
+    }
   } catch (error) {
     await handleTableActionError(error, action);
   } finally {
@@ -474,6 +814,7 @@ async function handleTableActionError(error, action) {
   const titles = {
     resend: 'No fue posible reenviar la invitación',
     revoke: 'No fue posible revocar la invitación',
+    access: 'No fue posible abrir la administración de accesos',
   };
 
   await notify(

@@ -225,7 +225,7 @@
 
 .users-actions {
   display: flex;
-  min-width: 150px;
+  min-width: 210px;
   flex-wrap: wrap;
   gap: 7px;
 }
@@ -379,6 +379,74 @@
   line-height: 1.5;
 }
 
+.users-modal__dialog--access {
+  width: min(820px, 100%);
+}
+
+.users-access-modal__identity {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+}
+
+.users-access-editor {
+  display: grid;
+  border: 1px solid var(--border-soft);
+}
+
+.users-access-editor__row {
+  display: grid;
+  grid-template-columns:
+    minmax(190px, 1fr)
+    minmax(220px, 280px)
+    auto;
+  gap: var(--space-4);
+  align-items: end;
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.users-access-editor__row:last-child {
+  border-bottom: 0;
+}
+
+.users-access-editor__application {
+  display: grid;
+  gap: 4px;
+  align-self: center;
+}
+
+.users-access-editor__application strong {
+  color: var(--text-primary);
+  font-size: 0.88rem;
+}
+
+.users-access-editor__application span {
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+}
+
+.users-access-editor__apply {
+  min-width: 92px;
+}
+
+.users-access-editor__restriction {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 9px 11px;
+  border-left: 3px solid var(--border-strong);
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.users-access-editor__empty {
+  margin: 0;
+  padding: var(--space-5);
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
 .users-form-message {
   margin: 0;
   padding: 11px 13px;
@@ -416,6 +484,15 @@
 
   .users-invite-accesses__grid {
     grid-template-columns: 1fr;
+  }
+
+  .users-access-editor__row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .users-access-editor__apply {
+    width: 100%;
   }
 }
 

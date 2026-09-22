@@ -87,7 +87,7 @@
   <link rel="stylesheet" href="/assets/css/app.css">
 </head>
 
-<body class="app-page">
+<body class="app-page" data-current-user-id="<?php echo (int) ($user['id'] ?? 0) ?>">
   <div class="app-shell">
 
     <aside class="sidebar" id="app-sidebar" aria-label="Navegación principal">
@@ -404,6 +404,31 @@
     </section>
   </div>
 
+  <div class="users-modal" data-access-modal hidden>
+    <div class="users-modal__backdrop" data-close-access></div>
+
+    <section class="users-modal__dialog users-modal__dialog--access" role="dialog" aria-modal="true"
+      aria-labelledby="access-title">
+      <header class="users-modal__header">
+        <div>
+          <p class="eyebrow">Control de acceso</p>
+          <h2 id="access-title">Administrar accesos</h2>
+        </div>
+
+        <button class="icon-button" type="button" data-close-access aria-label="Cerrar">×</button>
+      </header>
+
+      <div class="users-modal__body">
+        <p class="users-access-modal__identity" data-access-user-summary></p>
+        <div class="users-access-editor" data-access-applications></div>
+        <p class="users-form-message" data-access-message role="alert" aria-live="polite" hidden></p>
+
+        <div class="users-modal__actions">
+          <button class="button button--secondary" type="button" data-close-access>Cerrar</button>
+        </div>
+      </div>
+    </section>
+  </div>
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
 
     <symbol id="icon-tools" viewBox="0 0 24 24">
