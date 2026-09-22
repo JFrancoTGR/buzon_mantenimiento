@@ -661,6 +661,18 @@ final class UserAdminService
             $userId === $actorId
             && $newStatus !== 'active'
         ) {
+            $this->audit->safeRecord(
+                'user.deactivate.denied',
+                'user',
+                $userId,
+                $actorId,
+                $this->coreApplicationId(),
+                [
+                    'reason' => 'self_deactivation_denied',
+                    'requested_status' => $newStatus,
+                ]
+            );
+
             throw new HttpException(
                 409,
                 'self_deactivation_denied',
@@ -775,6 +787,25 @@ final class UserAdminService
                 $this->pdo->rollBack();
             }
 
+            if (
+                $exception instanceof HttpException
+                && $exception->errorCode ===
+                    'last_system_administrator_protected'
+            ) {
+                $this->audit->safeRecord(
+                    'user.deactivate.denied',
+                    'user',
+                    $userId,
+                    $actorId,
+                    $this->coreApplicationId(),
+                    [
+                        'reason' =>
+                            'last_system_administrator_protected',
+                        'requested_status' => $newStatus,
+                    ]
+                );
+            }
+
             throw $exception;
         }
 
@@ -877,6 +908,9 @@ final class UserAdminService
             );
         }
 
+        $auditApplicationId = null;
+        $auditCurrentRoleCode = null;
+
         $this->pdo->beginTransaction();
 
         try {
@@ -903,6 +937,7 @@ final class UserAdminService
             }
 
             $applicationId = (int) $application['id'];
+            $auditApplicationId = $applicationId;
 
             $current = $this->loadApplicationAccessForUpdate(
                 $userId,
@@ -916,6 +951,8 @@ final class UserAdminService
             $currentRoleCode = $currentIsActive
                 ? (string) $current['role_code']
                 : null;
+
+            $auditCurrentRoleCode = $currentRoleCode;
 
             if (
                 $currentIsActive
@@ -1144,6 +1181,33 @@ final class UserAdminService
         } catch (Throwable $exception) {
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
+            }
+
+            if (
+                $exception instanceof HttpException
+                && in_array(
+                    $exception->errorCode,
+                    [
+                        'self_core_access_change_denied',
+                        'last_system_administrator_protected',
+                    ],
+                    true
+                )
+            ) {
+                $this->audit->safeRecord(
+                    'user.access.change_denied',
+                    'user',
+                    $userId,
+                    $actorId,
+                    $auditApplicationId,
+                    [
+                        'reason' => $exception->errorCode,
+                        'application_code' => $applicationCode,
+                        'current_role_code' =>
+                            $auditCurrentRoleCode,
+                        'requested_role_code' => $roleCode,
+                    ]
+                );
             }
 
             throw $exception;

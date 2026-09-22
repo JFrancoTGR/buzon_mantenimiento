@@ -388,8 +388,23 @@ function createUserActions(user) {
     }
 
     if (invitationStatus === 'pending') {
-      wrapper.append(actionButton('Revocar', 'revoke', user.id, true));
+      wrapper.append(actionButton('Revocar', 'revoke', user.id, 'danger'));
     }
+  }
+
+  if (
+    user.status === 'active'
+    && Number(user.id) !== currentUserId
+  ) {
+    wrapper.append(
+      actionButton('Desactivar', 'deactivate', user.id, 'danger'),
+    );
+  }
+
+  if (user.status === 'inactive') {
+    wrapper.append(
+      actionButton('Activar', 'activate', user.id, 'primary'),
+    );
   }
 
   if (Boolean(context?.can_manage_access)) {
@@ -410,10 +425,15 @@ function createActionsEmpty() {
   return empty;
 }
 
-function actionButton(label, action, userId, danger = false) {
+function actionButton(label, action, userId, variant = 'default') {
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = `users-action${danger ? ' users-action--danger' : ''}`;
+
+  const variantClass = variant === 'default'
+    ? ''
+    : ` users-action--${variant}`;
+
+  button.className = `users-action${variantClass}`;
   button.dataset.action = action;
   button.dataset.userId = String(userId);
   button.textContent = label;
@@ -791,6 +811,14 @@ async function handleTableAction(event) {
     if (action === 'access') {
       openAccessModal(userId);
     }
+
+    if (action === 'activate') {
+      await changeUserStatus(userId, 'active');
+    }
+
+    if (action === 'deactivate') {
+      await changeUserStatus(userId, 'inactive');
+    }
   } catch (error) {
     await handleTableActionError(error, action);
   } finally {
@@ -811,10 +839,26 @@ async function handleTableActionError(error, action) {
     return;
   }
 
+  if (
+    ['activate', 'deactivate'].includes(action)
+    && Number(error?.status) === 409
+  ) {
+    await notify(
+      action === 'activate'
+        ? 'No fue posible activar la cuenta'
+        : 'No fue posible desactivar la cuenta',
+      message,
+      'warning',
+    );
+    return;
+  }
+
   const titles = {
     resend: 'No fue posible reenviar la invitación',
     revoke: 'No fue posible revocar la invitación',
     access: 'No fue posible abrir la administración de accesos',
+    activate: 'No fue posible activar la cuenta',
+    deactivate: 'No fue posible desactivar la cuenta',
   };
 
   await notify(
@@ -824,6 +868,52 @@ async function handleTableActionError(error, action) {
   );
 }
 
+async function changeUserStatus(userId, nextStatus) {
+  const user = usersById.get(Number(userId));
+
+  if (!user) return;
+
+  const activating = nextStatus === 'active';
+  const userName =
+    user.full_name
+    || user.email
+    || 'esta cuenta';
+
+  const accepted = await confirmAction(
+    activating ? 'Activar cuenta' : 'Desactivar cuenta',
+    activating
+      ? `Se activará la cuenta de ${userName}. El usuario podrá volver a iniciar sesión con sus accesos asignados.`
+      : `Se desactivará la cuenta de ${userName}. Sus sesiones activas se cerrarán y no podrá iniciar sesión hasta que la cuenta sea reactivada.`,
+  );
+
+  if (!accepted) return;
+
+  const payload = await apiRequest('/api/admin/users/change-status', {
+    method: 'POST',
+    body: JSON.stringify({
+      user_id: userId,
+      status: nextStatus,
+    }),
+  });
+
+  const changed = payload.data?.changed !== false;
+
+  await notify(
+    changed
+      ? (activating ? 'Cuenta activada' : 'Cuenta desactivada')
+      : 'Sin cambios',
+    changed
+      ? (
+        activating
+          ? 'La cuenta volvió a quedar activa.'
+          : 'La cuenta quedó inactiva y sus sesiones fueron revocadas.'
+      )
+      : 'La cuenta ya tenía ese estado.',
+    changed ? 'success' : 'info',
+  );
+
+  await loadUsers();
+}
 async function resendInvitation(userId) {
   const accepted = await confirmAction(
     'Reenviar invitación',

@@ -259,7 +259,22 @@
   cursor: wait;
 }
 
+.users-action--primary {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+
+.users-action--primary:hover:not(:disabled),
+.users-action--primary:focus-visible {
+  border-color: var(--primary-dark);
+  background: var(--primary-dark);
+  color: #fff;
+}
+
 .users-action--danger {
+  border-color: var(--error);
+  background: var(--surface);
   color: var(--error);
 }
 
