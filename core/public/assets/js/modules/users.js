@@ -7,9 +7,7 @@ const summary = document.querySelector('[data-users-summary]');
 const errorBox = document.querySelector('[data-users-error]');
 
 const searchFilter = document.querySelector('[data-filter-search]');
-const applicationFilter = document.querySelector(
-  '[data-filter-application]'
-);
+const applicationFilter = document.querySelector('[data-filter-application]');
 const statusFilter = document.querySelector('[data-filter-status]');
 
 const pagination = document.querySelector('[data-pagination]');
@@ -35,9 +33,7 @@ initialize();
 
 async function initialize() {
   try {
-    const payload = await apiRequest(
-      '/api/admin/users/context'
-    );
+    const payload = await apiRequest('/api/admin/users/context');
 
     context = payload.data || {};
 
@@ -55,14 +51,10 @@ function populateContext(value) {
 
   populateApplications(applications);
   populateStatuses(value?.statuses || []);
-  populateInviteAccesses(
-    applications,
-    Boolean(value?.can_manage_access)
-  );
+  populateInviteAccesses(applications, Boolean(value?.can_manage_access));
 
   if (inviteTtl) {
-    inviteTtl.textContent =
-      `${Number(value?.invitation_ttl_hours || 72)} horas`;
+    inviteTtl.textContent = `${Number(value?.invitation_ttl_hours || 72)} horas`;
   }
 }
 
@@ -111,16 +103,15 @@ function populateInviteAccesses(applications, canManageAccess) {
 
   const available = applications.filter(
     (application) =>
-      application?.is_active
-      && Array.isArray(application?.roles)
-      && application.roles.length > 0
+      application?.is_active &&
+      Array.isArray(application?.roles) &&
+      application.roles.length > 0,
   );
 
   if (!available.length) {
     const message = document.createElement('p');
     message.className = 'users-invite-accesses__empty';
-    message.textContent =
-      'No hay aplicaciones activas con roles disponibles.';
+    message.textContent = 'No hay aplicaciones activas con roles disponibles.';
 
     inviteAccesses.append(message);
     return;
@@ -179,10 +170,7 @@ function bindEvents() {
   });
 
   nextButton?.addEventListener('click', async () => {
-    if (
-      !lastPagination
-      || page >= Number(lastPagination.pages || 1)
-    ) {
+    if (!lastPagination || page >= Number(lastPagination.pages || 1)) {
       return;
     }
 
@@ -195,21 +183,15 @@ function bindEvents() {
     .querySelector('[data-open-invite]')
     ?.addEventListener('click', openInviteModal);
 
-  document
-    .querySelectorAll('[data-close-invite]')
-    .forEach((element) => {
-      element.addEventListener('click', closeInviteModal);
-    });
+  document.querySelectorAll('[data-close-invite]').forEach((element) => {
+    element.addEventListener('click', closeInviteModal);
+  });
 
   inviteForm?.addEventListener('submit', submitInvitation);
   tableBody?.addEventListener('click', handleTableAction);
 
   document.addEventListener('keydown', (event) => {
-    if (
-      event.key === 'Escape'
-      && inviteModal
-      && !inviteModal.hidden
-    ) {
+    if (event.key === 'Escape' && inviteModal && !inviteModal.hidden) {
       closeInviteModal();
     }
   });
@@ -242,7 +224,7 @@ async function loadUsers() {
 
   try {
     const payload = await apiRequest(
-      `/api/admin/users/list?${params.toString()}`
+      `/api/admin/users/list?${params.toString()}`,
     );
 
     renderUsers(payload.data?.items || []);
@@ -259,7 +241,7 @@ function renderUsers(items) {
     if (tableBody) {
       tableBody.innerHTML = `
         <tr>
-          <td colspan="7" class="users-table__muted">
+          <td colspan="8" class="users-table__muted">
             No se encontraron usuarios con estos filtros.
           </td>
         </tr>
@@ -286,6 +268,12 @@ function createUserRow(user) {
   const invitation = document.createElement('td');
   invitation.append(createInvitation(user.invitation));
 
+  const invitationExpires = document.createElement('td');
+  invitationExpires.className = 'users-date';
+  invitationExpires.textContent = user.invitation?.expires_at
+    ? formatInvitationExpiration(user.invitation.expires_at)
+    : '—';
+
   const applications = document.createElement('td');
   applications.append(createAccessList(user.applications || []));
 
@@ -306,10 +294,11 @@ function createUserRow(user) {
     identity,
     status,
     invitation,
+    invitationExpires,
     applications,
     lastLogin,
     created,
-    actions
+    actions,
   );
 
   return row;
@@ -349,6 +338,7 @@ function createInvitation(invitation) {
     empty.className = 'users-invitation__empty';
     empty.textContent = '—';
     wrapper.append(empty);
+
     return wrapper;
   }
 
@@ -358,13 +348,6 @@ function createInvitation(invitation) {
   status.textContent = invitationLabel(invitation.status);
 
   wrapper.append(status);
-
-  if (invitation.expires_at) {
-    const detail = document.createElement('small');
-    detail.textContent =
-      `Vence: ${formatDateTime(invitation.expires_at)}`;
-    wrapper.append(detail);
-  }
 
   return wrapper;
 }
@@ -381,15 +364,11 @@ function createInvitationActions(user) {
   const invitationStatus = user.invitation?.status || null;
 
   if (invitationStatus !== 'used') {
-    wrapper.append(
-      actionButton('Reenviar', 'resend', user.id)
-    );
+    wrapper.append(actionButton('Reenviar', 'resend', user.id));
   }
 
   if (invitationStatus === 'pending') {
-    wrapper.append(
-      actionButton('Revocar', 'revoke', user.id, true)
-    );
+    wrapper.append(actionButton('Revocar', 'revoke', user.id, true));
   }
 
   if (!wrapper.children.length) {
@@ -409,8 +388,7 @@ function createActionsEmpty() {
 function actionButton(label, action, userId, danger = false) {
   const button = document.createElement('button');
   button.type = 'button';
-  button.className =
-    `users-action${danger ? ' users-action--danger' : ''}`;
+  button.className = `users-action${danger ? ' users-action--danger' : ''}`;
   button.dataset.action = action;
   button.dataset.userId = String(userId);
   button.textContent = label;
@@ -439,15 +417,12 @@ function createAccessList(applications) {
 
     const applicationName = document.createElement('span');
     applicationName.className = 'users-access__application';
-    applicationName.textContent =
-      application.name || application.code;
+    applicationName.textContent = application.name || application.code;
 
     const role = document.createElement('span');
     role.className = 'users-access__role';
     role.textContent =
-      application.role?.name
-      || application.role?.code
-      || 'Sin rol';
+      application.role?.name || application.role?.code || 'Sin rol';
 
     item.append(applicationName, role);
     wrapper.append(item);
@@ -457,9 +432,7 @@ function createAccessList(applications) {
 }
 
 async function handleTableAction(event) {
-  const button = event.target.closest(
-    '[data-action][data-user-id]'
-  );
+  const button = event.target.closest('[data-action][data-user-id]');
 
   if (!button) return;
 
@@ -491,18 +464,10 @@ async function handleTableActionError(error, action) {
     return;
   }
 
-  const message =
-    error?.message || 'No fue posible completar la operación.';
+  const message = error?.message || 'No fue posible completar la operación.';
 
-  if (
-    action === 'resend'
-    && Number(error?.status) === 429
-  ) {
-    await notify(
-      'Aún no puedes reenviar la invitación',
-      message,
-      'warning'
-    );
+  if (action === 'resend' && Number(error?.status) === 429) {
+    await notify('Aún no puedes reenviar la invitación', message, 'warning');
     return;
   }
 
@@ -514,36 +479,31 @@ async function handleTableActionError(error, action) {
   await notify(
     titles[action] || 'No fue posible completar la operación',
     message,
-    'error'
+    'error',
   );
 }
 
 async function resendInvitation(userId) {
   const accepted = await confirmAction(
     'Reenviar invitación',
-    'Se generará un nuevo enlace personal para esta cuenta.'
+    'Se generará un nuevo enlace personal para esta cuenta.',
   );
 
   if (!accepted) return;
 
-  const payload = await apiRequest(
-    '/api/admin/users/resend-invitation',
-    {
-      method: 'POST',
-      body: JSON.stringify({ user_id: userId }),
-    }
-  );
+  const payload = await apiRequest('/api/admin/users/resend-invitation', {
+    method: 'POST',
+    body: JSON.stringify({ user_id: userId }),
+  });
 
-  const delivered = Boolean(
-    payload.data?.invitation_delivered
-  );
+  const delivered = Boolean(payload.data?.invitation_delivered);
 
   await notify(
     delivered ? 'Invitación reenviada' : 'Invitación generada',
     delivered
       ? 'El nuevo correo fue enviado.'
       : 'No fue posible entregar el nuevo correo. Revisa el estado de la invitación en la tabla antes de intentarlo nuevamente.',
-    delivered ? 'success' : 'warning'
+    delivered ? 'success' : 'warning',
   );
 
   await loadUsers();
@@ -552,23 +512,20 @@ async function resendInvitation(userId) {
 async function revokeInvitation(userId) {
   const accepted = await confirmAction(
     'Revocar invitación',
-    'El enlace vigente dejará de funcionar. La cuenta permanecerá en estado Invitado.'
+    'El enlace vigente dejará de funcionar. La cuenta permanecerá en estado Invitado.',
   );
 
   if (!accepted) return;
 
-  await apiRequest(
-    '/api/admin/users/revoke-invitation',
-    {
-      method: 'POST',
-      body: JSON.stringify({ user_id: userId }),
-    }
-  );
+  await apiRequest('/api/admin/users/revoke-invitation', {
+    method: 'POST',
+    body: JSON.stringify({ user_id: userId }),
+  });
 
   await notify(
     'Invitación revocada',
     'El enlace ya no puede utilizarse.',
-    'success'
+    'success',
   );
 
   await loadUsers();
@@ -586,9 +543,7 @@ async function submitInvitation(event) {
   const formData = new FormData(inviteForm);
 
   const applications = Array.from(
-    inviteAccesses?.querySelectorAll(
-      '[data-invite-application]'
-    ) || []
+    inviteAccesses?.querySelectorAll('[data-invite-application]') || [],
   )
     .filter((select) => select.value)
     .map((select) => ({
@@ -609,18 +564,13 @@ async function submitInvitation(event) {
   }
 
   try {
-    const payload = await apiRequest(
-      '/api/admin/users/create',
-      {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }
-    );
+    const payload = await apiRequest('/api/admin/users/create', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
 
     const createdUser = payload.data?.user || {};
-    const delivered = Boolean(
-      createdUser.invitation_delivered
-    );
+    const delivered = Boolean(createdUser.invitation_delivered);
 
     closeInviteModal();
     inviteForm.reset();
@@ -630,15 +580,13 @@ async function submitInvitation(event) {
       delivered
         ? 'La invitación fue enviada por correo.'
         : 'La cuenta quedó creada, pero el correo no pudo enviarse. Puedes reenviarlo desde la tabla.',
-      delivered ? 'success' : 'warning'
+      delivered ? 'success' : 'warning',
     );
 
     page = 1;
     await loadUsers();
   } catch (error) {
-    showInviteMessage(
-      error?.message || 'No fue posible crear la invitación.'
-    );
+    showInviteMessage(error?.message || 'No fue posible crear la invitación.');
   } finally {
     if (inviteSubmit) {
       inviteSubmit.disabled = false;
@@ -700,8 +648,7 @@ function renderPagination(value) {
   page = Number(value.page || 1);
 
   if (summary) {
-    summary.textContent =
-      `${total} usuario${total === 1 ? '' : 's'}`;
+    summary.textContent = `${total} usuario${total === 1 ? '' : 's'}`;
   }
 
   if (pagination) {
@@ -709,8 +656,7 @@ function renderPagination(value) {
   }
 
   if (pageLabel) {
-    pageLabel.textContent =
-      `Página ${page} de ${pages}`;
+    pageLabel.textContent = `Página ${page} de ${pages}`;
   }
 
   if (prevButton) {
@@ -727,7 +673,7 @@ function setLoading() {
 
   tableBody.innerHTML = `
     <tr>
-      <td colspan="7" class="users-table__muted">
+      <td colspan="8" class="users-table__muted">
         Cargando usuarios…
       </td>
     </tr>
@@ -762,17 +708,14 @@ function handleRequestError(error) {
   if (tableBody) {
     tableBody.innerHTML = `
       <tr>
-        <td colspan="7" class="users-table__muted">
+        <td colspan="8" class="users-table__muted">
           No fue posible cargar los usuarios.
         </td>
       </tr>
     `;
   }
 
-  showError(
-    error?.message
-    || 'No fue posible cargar el módulo de usuarios.'
-  );
+  showError(error?.message || 'No fue posible cargar el módulo de usuarios.');
 }
 
 function statusLabel(status) {
@@ -801,14 +744,10 @@ function invitationLabel(status) {
 function formatDateTime(value) {
   if (!value) return '—';
 
-  const normalized = value.includes('T')
-    ? value
-    : value.replace(' ', 'T');
+  const normalized = value.includes('T') ? value : value.replace(' ', 'T');
 
   const date = new Date(
-    normalized.endsWith('Z')
-      ? normalized
-      : `${normalized}Z`
+    normalized.endsWith('Z') ? normalized : `${normalized}Z`,
   );
 
   if (Number.isNaN(date.getTime())) {
@@ -819,6 +758,34 @@ function formatDateTime(value) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(date);
+}
+
+function formatInvitationExpiration(value) {
+  if (!value) return '—';
+
+  const normalized = value.includes('T') ? value : value.replace(' ', 'T');
+
+  const date = new Date(
+    normalized.endsWith('Z') ? normalized : `${normalized}Z`,
+  );
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const dateText = new Intl.DateTimeFormat('es-MX', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date);
+
+  const timeText = new Intl.DateTimeFormat('es-MX', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  }).format(date);
+
+  return `${dateText} · ${timeText}`;
 }
 
 async function confirmAction(title, text) {
@@ -836,6 +803,8 @@ async function confirmAction(title, text) {
     customClass: {
       popup: 'app-alert',
       confirmButton: 'app-alert__confirm',
+      cancelButton: 'app-alert__cancel',
+      actions: 'app-alert__actions',
     },
     buttonsStyling: false,
   });
@@ -863,44 +832,33 @@ async function notify(title, text, icon = 'success') {
 }
 
 function setupComingSoonActions() {
-  document
-    .querySelectorAll('[data-coming-soon]')
-    .forEach((element) => {
-      element.addEventListener('click', (event) => {
-        event.preventDefault();
+  document.querySelectorAll('[data-coming-soon]').forEach((element) => {
+    element.addEventListener('click', (event) => {
+      event.preventDefault();
 
-        window.Swal?.fire({
-          icon: 'info',
-          title: 'Próximamente',
-          text:
-            'Esta función todavía se encuentra en desarrollo dentro de EU Tools.',
-          confirmButtonText: 'Entendido',
-          customClass: {
-            popup: 'app-alert',
-            confirmButton: 'app-alert__confirm',
-          },
-          buttonsStyling: false,
-        });
+      window.Swal?.fire({
+        icon: 'info',
+        title: 'Próximamente',
+        text: 'Esta función todavía se encuentra en desarrollo dentro de EU Tools.',
+        confirmButtonText: 'Entendido',
+        customClass: {
+          popup: 'app-alert',
+          confirmButton: 'app-alert__confirm',
+        },
+        buttonsStyling: false,
       });
     });
+  });
 }
 
 function setupUserMenu() {
-  const container = document.querySelector(
-    '[data-user-dropdown]'
-  );
+  const container = document.querySelector('[data-user-dropdown]');
 
-  const trigger = document.querySelector(
-    '[data-user-trigger]'
-  );
+  const trigger = document.querySelector('[data-user-trigger]');
 
-  const panel = document.querySelector(
-    '[data-user-panel]'
-  );
+  const panel = document.querySelector('[data-user-panel]');
 
-  const logoutButton = document.querySelector(
-    '[data-logout]'
-  );
+  const logoutButton = document.querySelector('[data-logout]');
 
   const dropdown = setupDropdown({
     container,

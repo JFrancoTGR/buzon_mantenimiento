@@ -302,6 +302,7 @@
                     <th>Usuario</th>
                     <th>Estado</th>
                     <th>Invitación</th>
+                    <th>Vence</th>
                     <th>Aplicaciones y roles</th>
                     <th>Último acceso</th>
                     <th>Creado</th>
@@ -311,7 +312,7 @@
 
                 <tbody data-users-table>
                   <tr>
-                    <td colspan="7" class="users-table__muted">
+                    <td colspan="8" class="users-table__muted">
                       Cargando usuarios…
                     </td>
                   </tr>
