@@ -24,7 +24,7 @@ form?.addEventListener('submit', async (event) => {
   const formData = new FormData(form);
 
   try {
-    await apiRequest('/api/auth/login', {
+    const payload = await apiRequest('/api/auth/login', {
       method: 'POST',
 
       body: JSON.stringify({
@@ -32,6 +32,11 @@ form?.addEventListener('submit', async (event) => {
         password: formData.get('password'),
       }),
     });
+
+    if (payload.data.user.must_change_password) {
+      window.location.replace('/change-password');
+      return;
+    }
 
     window.location.replace('/');
   } catch (error) {

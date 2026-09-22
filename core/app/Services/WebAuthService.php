@@ -14,10 +14,12 @@ final class WebAuthService
     }
 
     /** @return array<string, mixed> */
-    public function requireUser(string $loginPath = '/login'): array
-    {
+    public function requireUser(
+        string $loginPath = '/login',
+        bool $allowPasswordChangeRequired = false
+    ): array {
         try {
-            return $this->auth->currentUser();
+            $user = $this->auth->currentUser();
         } catch (HttpException $exception) {
             if ($exception->status !== 401) {
                 throw $exception;
@@ -26,12 +28,23 @@ final class WebAuthService
             header('Location: ' . $loginPath, true, 302);
             exit;
         }
+
+        if (
+            !$allowPasswordChangeRequired
+            && (bool) ($user['must_change_password'] ?? false)
+        ) {
+            header('Location: /change-password', true, 302);
+            exit;
+        }
+
+        return $user;
     }
 
-    public function redirectIfAuthenticated(string $destination = '/'): void
-    {
+    public function redirectIfAuthenticated(
+        string $destination = '/'
+    ): void {
         try {
-            $this->auth->currentUser();
+            $user = $this->auth->currentUser();
         } catch (HttpException $exception) {
             if ($exception->status === 401) {
                 return;
@@ -40,7 +53,11 @@ final class WebAuthService
             throw $exception;
         }
 
-        header('Location: ' . $destination, true, 302);
+        $target = (bool) ($user['must_change_password'] ?? false)
+            ? '/change-password'
+            : $destination;
+
+        header('Location: ' . $target, true, 302);
         exit;
     }
 }

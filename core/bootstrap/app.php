@@ -7,9 +7,11 @@ use App\Core\Database;
 use App\Core\Http;
 use App\Exceptions\HttpException;
 use App\Security\SessionManager;
+use App\Services\AccountService;
 use App\Services\AuditService;
 use App\Services\AuthService;
 use App\Services\HubService;
+use App\Services\PasswordResetService;
 use App\Services\RegistrationService;
 use App\Services\UserAdminService;
 use App\Services\UserInvitationService;
@@ -139,6 +141,19 @@ $sharedMailer = new SharedMailer(
     ]
 );
 
+$accountService = new AccountService(
+    $pdo,
+    $auditService,
+    $authService,
+    $sharedMailer
+);
+
+$passwordResetService = new PasswordResetService(
+    $pdo,
+    $auditService,
+    $sharedMailer
+);
+
 $registrationService = new RegistrationService(
     $pdo,
     $auditService,
@@ -204,6 +219,8 @@ return [
     'audit' => $auditService,
     'auth' => $authService,
     'webAuth' => $webAuthService,
+    'account' => $accountService,
+    'password_reset' => $passwordResetService,
     'hub' => $hubService,
     'registration' => $registrationService,
     'user_admin' => $userAdminService,

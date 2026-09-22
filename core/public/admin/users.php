@@ -198,13 +198,13 @@
 
               <div class="dropdown__menu">
 
-                <button class="dropdown__item" type="button" data-coming-soon>
+                <a class="dropdown__item" href="/account">
                   <svg width="18" height="18" aria-hidden="true">
                     <use href="#icon-user"></use>
                   </svg>
 
                   Mi cuenta
-                </button>
+                </a>
 
                 <button class="dropdown__item dropdown__item--danger" type="button" data-logout>
                   <svg width="18" height="18" aria-hidden="true">
