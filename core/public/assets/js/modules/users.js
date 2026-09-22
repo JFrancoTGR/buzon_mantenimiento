@@ -573,7 +573,7 @@ function createAccessEditorRow(user, application, currentAccess) {
   const action = document.createElement('button');
   action.type = 'button';
   action.className =
-    'button button--secondary users-access-editor__apply';
+    'button button--primary users-access-editor__apply';
   action.dataset.accessApply = '';
   action.textContent = 'Aplicar';
   action.disabled = true;

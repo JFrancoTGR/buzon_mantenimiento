@@ -428,6 +428,7 @@
 
 .users-access-editor__apply {
   min-width: 92px;
+  margin-top: var(--space-2);
 }
 
 .users-access-editor__restriction {
