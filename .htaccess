@@ -53,7 +53,7 @@ RewriteRule ^api/account/(profile|update-profile)/?$ core/public/api/account/$1.
 RewriteRule ^api/hub/apps/?$ core/public/api/hub/apps.php [L,NC]
 
 # Administración global de usuarios.
-RewriteRule ^api/admin/users/(context|list|create|resend-invitation)/?$ core/public/api/admin/users/$1.php [L,NC]
+RewriteRule ^api/admin/users/(context|list|create|resend-invitation|revoke-invitation|change-status|update-access)/?$ core/public/api/admin/users/$1.php [L,NC]
 
 # Nunca exponer capas privadas de Maintenance.
 

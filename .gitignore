@@ -19,3 +19,6 @@
 .idea/
 .DS_Store
 Thumbs.db
+# Local QA credentials / sessions
+qa-*-cookies.txt
+qa-*-login.json
