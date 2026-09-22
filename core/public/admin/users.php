@@ -224,7 +224,7 @@
       <main class="main-content">
         <div class="main-content__inner">
 
-          <section class="page-heading" aria-labelledby="users-title">
+          <section class="page-heading users-page-heading" aria-labelledby="users-title">
             <div class="page-heading__copy">
               <p class="eyebrow">
                 Administración
@@ -239,6 +239,13 @@
                 a las aplicaciones de EU Tools.
               </p>
             </div>
+
+            <button class="button button--primary" type="button" data-open-invite>
+              <svg aria-hidden="true">
+                <use href="#icon-plus"></use>
+              </svg>
+              <span>Invitar usuario</span>
+            </button>
           </section>
 
           <section class="panel users-toolbar" aria-label="Filtros de usuarios">
@@ -294,15 +301,17 @@
                   <tr>
                     <th>Usuario</th>
                     <th>Estado</th>
+                    <th>Invitación</th>
                     <th>Aplicaciones y roles</th>
                     <th>Último acceso</th>
                     <th>Creado</th>
+                    <th>Acciones</th>
                   </tr>
                 </thead>
 
                 <tbody data-users-table>
                   <tr>
-                    <td colspan="5" class="users-table__muted">
+                    <td colspan="7" class="users-table__muted">
                       Cargando usuarios…
                     </td>
                   </tr>
@@ -329,6 +338,69 @@
       </main>
 
     </div>
+  </div>
+
+  <div class="users-modal" data-invite-modal hidden>
+    <div class="users-modal__backdrop" data-close-invite></div>
+
+    <section class="users-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="invite-title">
+      <header class="users-modal__header">
+        <div>
+          <p class="eyebrow">Nueva identidad</p>
+          <h2 id="invite-title">Invitar usuario</h2>
+        </div>
+
+        <button class="icon-button" type="button" data-close-invite aria-label="Cerrar">
+          ×
+        </button>
+      </header>
+
+      <form class="users-modal__body" data-invite-form novalidate>
+        <div class="users-form-grid">
+          <label class="users-field">
+            <span>Nombre</span>
+            <input type="text" name="first_name" required maxlength="80" autocomplete="given-name">
+          </label>
+
+          <label class="users-field">
+            <span>Apellidos</span>
+            <input type="text" name="last_name" required maxlength="120" autocomplete="family-name">
+          </label>
+        </div>
+
+        <label class="users-field">
+          <span>Correo electrónico</span>
+          <input type="email" name="email" required maxlength="190" autocomplete="email">
+        </label>
+
+        <fieldset class="users-invite-accesses">
+          <legend>Accesos iniciales <span>Opcional</span></legend>
+
+          <p class="users-invite-accesses__help">
+            Puedes crear la identidad sin acceso a aplicaciones y asignarlo posteriormente.
+          </p>
+
+          <div class="users-invite-accesses__grid" data-invite-accesses></div>
+        </fieldset>
+
+        <div class="users-invite-note">
+          El usuario recibirá un enlace personal para crear su contraseña.
+          La invitación caduca después de <strong data-invite-ttl>72 horas</strong>.
+        </div>
+
+        <p class="users-form-message" data-invite-message role="alert" aria-live="polite"></p>
+
+        <div class="users-modal__actions">
+          <button class="button button--secondary" type="button" data-close-invite>
+            Cancelar
+          </button>
+
+          <button class="button button--primary" type="submit" data-invite-submit>
+            Enviar invitación
+          </button>
+        </div>
+      </form>
+    </section>
   </div>
 
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
@@ -368,6 +440,10 @@
     <symbol id="icon-logout" viewBox="0 0 24 24">
       <path d="M4 3h9v2H6v14h7v2H4V3Zm13.6 4.6L22 12l-4.4 4.4-1.4-1.4 2-2H10v-2h8.2l-2-2 1.4-1.4Z"
         fill="currentColor" />
+    </symbol>
+
+    <symbol id="icon-plus" viewBox="0 0 24 24">
+      <path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z" fill="currentColor" />
     </symbol>
 
   </svg>

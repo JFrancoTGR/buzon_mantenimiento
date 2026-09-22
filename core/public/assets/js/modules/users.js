@@ -17,6 +17,14 @@ const pageLabel = document.querySelector('[data-page-label]');
 const prevButton = document.querySelector('[data-page-prev]');
 const nextButton = document.querySelector('[data-page-next]');
 
+const inviteModal = document.querySelector('[data-invite-modal]');
+const inviteForm = document.querySelector('[data-invite-form]');
+const inviteAccesses = document.querySelector('[data-invite-accesses]');
+const inviteMessage = document.querySelector('[data-invite-message]');
+const inviteSubmit = document.querySelector('[data-invite-submit]');
+const inviteTtl = document.querySelector('[data-invite-ttl]');
+
+let context = null;
 let page = 1;
 let lastPagination = null;
 
@@ -31,7 +39,9 @@ async function initialize() {
       '/api/admin/users/context'
     );
 
-    populateContext(payload.data);
+    context = payload.data || {};
+
+    populateContext(context);
     bindEvents();
 
     await loadUsers();
@@ -40,9 +50,20 @@ async function initialize() {
   }
 }
 
-function populateContext(context) {
-  populateApplications(context?.applications || []);
-  populateStatuses(context?.statuses || []);
+function populateContext(value) {
+  const applications = value?.applications || [];
+
+  populateApplications(applications);
+  populateStatuses(value?.statuses || []);
+  populateInviteAccesses(
+    applications,
+    Boolean(value?.can_manage_access)
+  );
+
+  if (inviteTtl) {
+    inviteTtl.textContent =
+      `${Number(value?.invitation_ttl_hours || 72)} horas`;
+  }
 }
 
 function populateApplications(applications) {
@@ -70,6 +91,65 @@ function populateStatuses(statuses) {
     option.textContent = statusLabel(status);
 
     statusFilter.append(option);
+  });
+}
+
+function populateInviteAccesses(applications, canManageAccess) {
+  if (!inviteAccesses) return;
+
+  inviteAccesses.replaceChildren();
+
+  if (!canManageAccess) {
+    const message = document.createElement('p');
+    message.className = 'users-invite-accesses__empty';
+    message.textContent =
+      'Tu cuenta puede crear identidades, pero no asignar accesos a aplicaciones.';
+
+    inviteAccesses.append(message);
+    return;
+  }
+
+  const available = applications.filter(
+    (application) =>
+      application?.is_active
+      && Array.isArray(application?.roles)
+      && application.roles.length > 0
+  );
+
+  if (!available.length) {
+    const message = document.createElement('p');
+    message.className = 'users-invite-accesses__empty';
+    message.textContent =
+      'No hay aplicaciones activas con roles disponibles.';
+
+    inviteAccesses.append(message);
+    return;
+  }
+
+  available.forEach((application) => {
+    const field = document.createElement('label');
+    field.className = 'users-field users-invite-access';
+
+    const label = document.createElement('span');
+    label.textContent = application.name || application.code;
+
+    const select = document.createElement('select');
+    select.dataset.inviteApplication = application.code;
+
+    const empty = document.createElement('option');
+    empty.value = '';
+    empty.textContent = 'Sin acceso';
+    select.append(empty);
+
+    application.roles.forEach((role) => {
+      const option = document.createElement('option');
+      option.value = role.code;
+      option.textContent = role.name || role.code;
+      select.append(option);
+    });
+
+    field.append(label, select);
+    inviteAccesses.append(field);
   });
 }
 
@@ -109,6 +189,29 @@ function bindEvents() {
     page += 1;
 
     await loadUsers();
+  });
+
+  document
+    .querySelector('[data-open-invite]')
+    ?.addEventListener('click', openInviteModal);
+
+  document
+    .querySelectorAll('[data-close-invite]')
+    .forEach((element) => {
+      element.addEventListener('click', closeInviteModal);
+    });
+
+  inviteForm?.addEventListener('submit', submitInvitation);
+  tableBody?.addEventListener('click', handleTableAction);
+
+  document.addEventListener('keydown', (event) => {
+    if (
+      event.key === 'Escape'
+      && inviteModal
+      && !inviteModal.hidden
+    ) {
+      closeInviteModal();
+    }
   });
 }
 
@@ -156,7 +259,7 @@ function renderUsers(items) {
     if (tableBody) {
       tableBody.innerHTML = `
         <tr>
-          <td colspan="5" class="users-table__muted">
+          <td colspan="7" class="users-table__muted">
             No se encontraron usuarios con estos filtros.
           </td>
         </tr>
@@ -180,6 +283,9 @@ function createUserRow(user) {
   const status = document.createElement('td');
   status.append(createStatus(user.status));
 
+  const invitation = document.createElement('td');
+  invitation.append(createInvitation(user.invitation));
+
   const applications = document.createElement('td');
   applications.append(createAccessList(user.applications || []));
 
@@ -193,12 +299,17 @@ function createUserRow(user) {
   created.className = 'users-date';
   created.textContent = formatDateTime(user.created_at);
 
+  const actions = document.createElement('td');
+  actions.append(createInvitationActions(user));
+
   row.append(
     identity,
     status,
+    invitation,
     applications,
     lastLogin,
-    created
+    created,
+    actions
   );
 
   return row;
@@ -227,6 +338,84 @@ function createStatus(status) {
   badge.textContent = statusLabel(status);
 
   return badge;
+}
+
+function createInvitation(invitation) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'users-invitation';
+
+  if (!invitation) {
+    const empty = document.createElement('span');
+    empty.className = 'users-invitation__empty';
+    empty.textContent = '—';
+    wrapper.append(empty);
+    return wrapper;
+  }
+
+  const status = document.createElement('span');
+  status.className = 'users-invitation__status';
+  status.dataset.status = invitation.status || '';
+  status.textContent = invitationLabel(invitation.status);
+
+  wrapper.append(status);
+
+  if (invitation.expires_at) {
+    const detail = document.createElement('small');
+    detail.textContent =
+      `Vence: ${formatDateTime(invitation.expires_at)}`;
+    wrapper.append(detail);
+  }
+
+  return wrapper;
+}
+
+function createInvitationActions(user) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'users-actions';
+
+  if (user.status !== 'invited') {
+    wrapper.append(createActionsEmpty());
+    return wrapper;
+  }
+
+  const invitationStatus = user.invitation?.status || null;
+
+  if (invitationStatus !== 'used') {
+    wrapper.append(
+      actionButton('Reenviar', 'resend', user.id)
+    );
+  }
+
+  if (invitationStatus === 'pending') {
+    wrapper.append(
+      actionButton('Revocar', 'revoke', user.id, true)
+    );
+  }
+
+  if (!wrapper.children.length) {
+    wrapper.append(createActionsEmpty());
+  }
+
+  return wrapper;
+}
+
+function createActionsEmpty() {
+  const empty = document.createElement('span');
+  empty.className = 'users-actions__empty';
+  empty.textContent = '—';
+  return empty;
+}
+
+function actionButton(label, action, userId, danger = false) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className =
+    `users-action${danger ? ' users-action--danger' : ''}`;
+  button.dataset.action = action;
+  button.dataset.userId = String(userId);
+  button.textContent = label;
+
+  return button;
 }
 
 function createAccessList(applications) {
@@ -265,6 +454,229 @@ function createAccessList(applications) {
   });
 
   return wrapper;
+}
+
+async function handleTableAction(event) {
+  const button = event.target.closest(
+    '[data-action][data-user-id]'
+  );
+
+  if (!button) return;
+
+  const userId = Number(button.dataset.userId);
+  const action = button.dataset.action;
+
+  if (!userId || !action) return;
+
+  button.disabled = true;
+
+  try {
+    if (action === 'resend') {
+      await resendInvitation(userId);
+    }
+
+    if (action === 'revoke') {
+      await revokeInvitation(userId);
+    }
+  } catch (error) {
+    await handleTableActionError(error, action);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function handleTableActionError(error, action) {
+  if (Number(error?.status) === 401) {
+    window.location.replace('/login');
+    return;
+  }
+
+  const message =
+    error?.message || 'No fue posible completar la operación.';
+
+  if (
+    action === 'resend'
+    && Number(error?.status) === 429
+  ) {
+    await notify(
+      'Aún no puedes reenviar la invitación',
+      message,
+      'warning'
+    );
+    return;
+  }
+
+  const titles = {
+    resend: 'No fue posible reenviar la invitación',
+    revoke: 'No fue posible revocar la invitación',
+  };
+
+  await notify(
+    titles[action] || 'No fue posible completar la operación',
+    message,
+    'error'
+  );
+}
+
+async function resendInvitation(userId) {
+  const accepted = await confirmAction(
+    'Reenviar invitación',
+    'Se generará un nuevo enlace personal para esta cuenta.'
+  );
+
+  if (!accepted) return;
+
+  const payload = await apiRequest(
+    '/api/admin/users/resend-invitation',
+    {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId }),
+    }
+  );
+
+  const delivered = Boolean(
+    payload.data?.invitation_delivered
+  );
+
+  await notify(
+    delivered ? 'Invitación reenviada' : 'Invitación generada',
+    delivered
+      ? 'El nuevo correo fue enviado.'
+      : 'No fue posible entregar el nuevo correo. Revisa el estado de la invitación en la tabla antes de intentarlo nuevamente.',
+    delivered ? 'success' : 'warning'
+  );
+
+  await loadUsers();
+}
+
+async function revokeInvitation(userId) {
+  const accepted = await confirmAction(
+    'Revocar invitación',
+    'El enlace vigente dejará de funcionar. La cuenta permanecerá en estado Invitado.'
+  );
+
+  if (!accepted) return;
+
+  await apiRequest(
+    '/api/admin/users/revoke-invitation',
+    {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId }),
+    }
+  );
+
+  await notify(
+    'Invitación revocada',
+    'El enlace ya no puede utilizarse.',
+    'success'
+  );
+
+  await loadUsers();
+}
+
+async function submitInvitation(event) {
+  event.preventDefault();
+
+  if (!inviteForm) return;
+
+  clearInviteMessage();
+
+  if (!inviteForm.reportValidity()) return;
+
+  const formData = new FormData(inviteForm);
+
+  const applications = Array.from(
+    inviteAccesses?.querySelectorAll(
+      '[data-invite-application]'
+    ) || []
+  )
+    .filter((select) => select.value)
+    .map((select) => ({
+      application_code: select.dataset.inviteApplication,
+      role_code: select.value,
+    }));
+
+  const data = {
+    first_name: String(formData.get('first_name') || '').trim(),
+    last_name: String(formData.get('last_name') || '').trim(),
+    email: String(formData.get('email') || '').trim(),
+    applications,
+  };
+
+  if (inviteSubmit) {
+    inviteSubmit.disabled = true;
+    inviteSubmit.textContent = 'Enviando…';
+  }
+
+  try {
+    const payload = await apiRequest(
+      '/api/admin/users/create',
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+
+    const createdUser = payload.data?.user || {};
+    const delivered = Boolean(
+      createdUser.invitation_delivered
+    );
+
+    closeInviteModal();
+    inviteForm.reset();
+
+    await notify(
+      delivered ? 'Usuario invitado' : 'Usuario creado',
+      delivered
+        ? 'La invitación fue enviada por correo.'
+        : 'La cuenta quedó creada, pero el correo no pudo enviarse. Puedes reenviarlo desde la tabla.',
+      delivered ? 'success' : 'warning'
+    );
+
+    page = 1;
+    await loadUsers();
+  } catch (error) {
+    showInviteMessage(
+      error?.message || 'No fue posible crear la invitación.'
+    );
+  } finally {
+    if (inviteSubmit) {
+      inviteSubmit.disabled = false;
+      inviteSubmit.textContent = 'Enviar invitación';
+    }
+  }
+}
+
+function openInviteModal() {
+  if (!inviteModal || !inviteForm) return;
+
+  clearInviteMessage();
+  inviteModal.hidden = false;
+  document.body.style.overflow = 'hidden';
+
+  inviteForm.querySelector('input')?.focus();
+}
+
+function closeInviteModal() {
+  if (!inviteModal) return;
+
+  inviteModal.hidden = true;
+  document.body.style.overflow = '';
+  clearInviteMessage();
+}
+
+function showInviteMessage(message) {
+  if (!inviteMessage) return;
+
+  inviteMessage.textContent = message;
+  inviteMessage.hidden = false;
+}
+
+function clearInviteMessage() {
+  if (!inviteMessage) return;
+
+  inviteMessage.textContent = '';
+  inviteMessage.hidden = true;
 }
 
 function renderPagination(value) {
@@ -315,7 +727,7 @@ function setLoading() {
 
   tableBody.innerHTML = `
     <tr>
-      <td colspan="5" class="users-table__muted">
+      <td colspan="7" class="users-table__muted">
         Cargando usuarios…
       </td>
     </tr>
@@ -350,7 +762,7 @@ function handleRequestError(error) {
   if (tableBody) {
     tableBody.innerHTML = `
       <tr>
-        <td colspan="5" class="users-table__muted">
+        <td colspan="7" class="users-table__muted">
           No fue posible cargar los usuarios.
         </td>
       </tr>
@@ -370,6 +782,17 @@ function statusLabel(status) {
     blocked: 'Bloqueado',
     pending: 'Verificación pendiente',
     invited: 'Invitado',
+  };
+
+  return labels[status] || status || '—';
+}
+
+function invitationLabel(status) {
+  const labels = {
+    pending: 'Vigente',
+    expired: 'Expirada',
+    revoked: 'Revocada',
+    used: 'Utilizada',
   };
 
   return labels[status] || status || '—';
@@ -396,6 +819,47 @@ function formatDateTime(value) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(date);
+}
+
+async function confirmAction(title, text) {
+  if (!window.Swal) {
+    return window.confirm(`${title}\n\n${text}`);
+  }
+
+  const result = await window.Swal.fire({
+    icon: 'question',
+    title,
+    text,
+    showCancelButton: true,
+    confirmButtonText: 'Continuar',
+    cancelButtonText: 'Cancelar',
+    customClass: {
+      popup: 'app-alert',
+      confirmButton: 'app-alert__confirm',
+    },
+    buttonsStyling: false,
+  });
+
+  return result.isConfirmed;
+}
+
+async function notify(title, text, icon = 'success') {
+  if (!window.Swal) {
+    window.alert(`${title}\n\n${text}`);
+    return;
+  }
+
+  await window.Swal.fire({
+    icon,
+    title,
+    text,
+    confirmButtonText: 'Aceptar',
+    customClass: {
+      popup: 'app-alert',
+      confirmButton: 'app-alert__confirm',
+    },
+    buttonsStyling: false,
+  });
 }
 
 function setupComingSoonActions() {
