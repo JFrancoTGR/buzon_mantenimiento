@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Exceptions\HttpException;
+use App\Services\AuthorizationService;
 
 $services = require dirname(__DIR__) . '/bootstrap/app.php';
 
@@ -75,6 +76,17 @@ if ((bool) ($user['must_change_password'] ?? false)) {
     );
 }
 
+if (
+    $view === 'new-ticket'
+    && !AuthorizationService::hasPermission(
+        $user,
+        'ticket.create'
+    )
+) {
+    redirectOperationalRequest(
+        '/maintenance/dashboard.html'
+    );
+}
 header('Content-Type: text/html; charset=UTF-8');
 
 readfile(__DIR__ . '/' . $file);

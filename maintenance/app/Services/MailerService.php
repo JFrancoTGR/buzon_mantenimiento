@@ -45,71 +45,6 @@ final class MailerService
         }
     }
 
-    /** @param array{code?:string,name?:string}|null $location */
-    public function sendVerificationEmail(
-        int $userId,
-        string $recipientEmail,
-        string $recipientName,
-        string $rawToken,
-        ?array $location = null
-    ): void {
-        $appUrl = rtrim(Env::get('APP_URL'), '/');
-        $verificationUrl = $appUrl . '/verify-email.html?token=' . rawurlencode($rawToken);
-        $expiresMinutes = Env::int('EMAIL_VERIFICATION_TTL_MINUTES', 60);
-        $safeName = self::escape($recipientName);
-        $safeUrl = self::escape($verificationUrl);
-        $locationText = '';
-
-        if (is_array($location) && ($location['name'] ?? '') !== '') {
-            $safeLocation = self::escape((string) $location['name']);
-            $locationText = "<p><strong>Ubicación del reporte:</strong> {$safeLocation}</p>";
-        }
-
-        $subject = 'Verifica tu cuenta | Plataforma de Mantenimiento';
-        $html = <<<HTML
-<!doctype html>
-<html lang="es">
-<head><meta charset="utf-8"><title>{$subject}</title></head>
-<body style="margin:0;background:#f4f6f8;font-family:Arial,sans-serif;color:#17202a;">
-  <div style="max-width:620px;margin:0 auto;padding:32px 18px;">
-    <div style="background:#ffffff;border:1px solid #d9dee3;padding:28px;">
-      <div style="font-size:13px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#c31422;margin-bottom:18px;">Estrategia Urbana</div>
-      <h1 style="font-size:24px;margin:0 0 14px;">Verifica tu correo electrónico</h1>
-      <p>Hola {$safeName},</p>
-      <p>Confirma tu correo para activar tu cuenta y generar reportes de mantenimiento.</p>
-      {$locationText}
-      <p style="margin:28px 0;">
-        <a href="{$safeUrl}" style="display:inline-block;background:#c31422;color:#ffffff;text-decoration:none;font-weight:700;padding:13px 18px;">Verificar mi cuenta</a>
-      </p>
-      <p style="font-size:13px;color:#5f6b76;">El enlace vence en {$expiresMinutes} minutos y solo puede utilizarse una vez.</p>
-      <p style="font-size:13px;color:#5f6b76;word-break:break-all;">Si el botón no funciona, copia esta dirección en tu navegador:<br>{$safeUrl}</p>
-      <p style="font-size:13px;color:#5f6b76;">Si no solicitaste esta cuenta, puedes ignorar este mensaje.</p>
-    </div>
-  </div>
-</body>
-</html>
-HTML;
-
-        $text = "Hola {$recipientName},\n\n"
-            . "Verifica tu correo para activar tu cuenta de la Plataforma de Mantenimiento.\n\n"
-            . ($location !== null && ($location['name'] ?? '') !== ''
-                ? 'Ubicación del reporte: ' . (string) $location['name'] . "\n\n"
-                : '')
-            . "Enlace: {$verificationUrl}\n\n"
-            . "El enlace vence en {$expiresMinutes} minutos y solo puede utilizarse una vez.";
-
-        $this->sendAndLog(
-            null,
-            $userId,
-            $recipientEmail,
-            $recipientName,
-            'auth.email_verification.requested',
-            $subject,
-            $html,
-            $text
-        );
-    }
-
     public function sendTicketCreatedConfirmationToReporter(
         int $ticketId,
         int $recipientUserId,
@@ -122,7 +57,7 @@ HTML;
         string $priorityName
     ): void {
         $appUrl = rtrim(Env::get('APP_URL'), '/');
-        $ticketUrl = $appUrl . '/ticket.html?id=' . $ticketId;
+        $ticketUrl = $appUrl . '/maintenance/ticket.html?id=' . $ticketId;
         $safeTicketUrl = self::escape($ticketUrl);
         $subject = "Reporte {$folio} recibido | Plataforma de Mantenimiento";
         $safeName = self::escape($recipientName);
@@ -184,7 +119,7 @@ HTML
         int $attachmentsCount
     ): void {
         $appUrl = rtrim(Env::get('APP_URL'), '/');
-        $ticketUrl = $appUrl . '/ticket.html?id=' . $ticketId;
+        $ticketUrl = $appUrl . '/maintenance/ticket.html?id=' . $ticketId;
         $safeTicketUrl = self::escape($ticketUrl);
         $subject = "Nuevo reporte asignado: {$folio}";
         $safeName = self::escape($recipientName);
@@ -247,7 +182,7 @@ HTML
         string $comment
     ): void {
         $appUrl = rtrim(Env::get('APP_URL'), '/');
-        $ticketUrl = $appUrl . '/ticket.html?id=' . $ticketId;
+        $ticketUrl = $appUrl . '/maintenance/ticket.html?id=' . $ticketId;
         $safeTicketUrl = self::escape($ticketUrl);
         $safeName = self::escape($recipientName);
         $safeActor = self::escape($actorName);
@@ -297,7 +232,7 @@ HTML
         ?string $comment = null
     ): void {
         $appUrl = rtrim(Env::get('APP_URL'), '/');
-        $ticketUrl = $appUrl . '/ticket.html?id=' . $ticketId;
+        $ticketUrl = $appUrl . '/maintenance/ticket.html?id=' . $ticketId;
         $safeTicketUrl = self::escape($ticketUrl);
         $safeName = self::escape($recipientName);
         $safeActor = self::escape($actorName);
@@ -357,7 +292,7 @@ HTML
         string $requestComment
     ): void {
         $appUrl = rtrim(Env::get('APP_URL'), '/');
-        $ticketUrl = $appUrl . '/ticket.html?id=' . $ticketId;
+        $ticketUrl = $appUrl . '/maintenance/ticket.html?id=' . $ticketId;
         $safeTicketUrl = self::escape($ticketUrl);
         $safeName = self::escape($recipientName);
         $safeRequester = self::escape($requesterName);
@@ -420,7 +355,7 @@ HTML
         string $decisionComment
     ): void {
         $appUrl = rtrim(Env::get('APP_URL'), '/');
-        $ticketUrl = $appUrl . '/ticket.html?id=' . $ticketId;
+        $ticketUrl = $appUrl . '/maintenance/ticket.html?id=' . $ticketId;
         $safeTicketUrl = self::escape($ticketUrl);
         $safeName = self::escape($recipientName);
         $safeDirector = self::escape($directorName);
@@ -500,158 +435,6 @@ HTML
         );
     }
 
-    public function sendProfileChangedNotification(
-        int $userId,
-        string $recipientEmail,
-        string $recipientName
-    ): void {
-        $safeName = self::escape($recipientName);
-        $subject = 'Tus datos de cuenta fueron actualizados | Plataforma de Mantenimiento';
-        $html = self::emailShell(
-            'Datos de cuenta actualizados',
-            <<<HTML
-<p>Hola {$safeName},</p>
-<p>El nombre y/o los apellidos asociados con tu cuenta fueron actualizados correctamente.</p>
-<p><strong>Nombre actual:</strong> {$safeName}</p>
-<p style="font-size:13px;color:#5f6b76;">Si no realizaste este cambio, contacta al administrador de la Plataforma de Mantenimiento.</p>
-HTML
-        );
-        $text = "Hola {$recipientName},\n\n"
-            . "Los datos personales de tu cuenta fueron actualizados correctamente.\n"
-            . "Nombre actual: {$recipientName}\n\n"
-            . "Si no realizaste este cambio, contacta al administrador de la Plataforma de Mantenimiento.";
-
-        $this->sendAndLog(
-            null,
-            $userId,
-            $recipientEmail,
-            $recipientName,
-            'account.profile.changed',
-            $subject,
-            $html,
-            $text
-        );
-    }
-
-    public function sendPasswordChangedNotification(
-        int $userId,
-        string $recipientEmail,
-        string $recipientName
-    ): void {
-        $appUrl = rtrim(Env::get('APP_URL'), '/');
-        $loginUrl = $appUrl . '/login.html';
-        $safeLoginUrl = self::escape($loginUrl);
-        $safeName = self::escape($recipientName);
-        $subject = 'Tu contraseña fue actualizada | Plataforma de Mantenimiento';
-        $html = self::emailShell(
-            'Contraseña actualizada',
-            <<<HTML
-<p>Hola {$safeName},</p>
-<p>La contraseña de tu cuenta fue actualizada correctamente.</p>
-<p>Por seguridad, todas las sesiones que estaban abiertas fueron cerradas.</p>
-<p style="margin:28px 0;"><a href="{$safeLoginUrl}" style="display:inline-block;background:#c31422;color:#ffffff;text-decoration:none;font-weight:700;padding:13px 18px;">Iniciar sesión</a></p>
-<p style="font-size:13px;color:#5f6b76;"><strong>Si tú no realizaste este cambio, contacta de inmediato al administrador de la Plataforma de Mantenimiento.</strong></p>
-HTML
-        );
-        $text = "Hola {$recipientName},\n\n"
-            . "La contraseña de tu cuenta fue actualizada correctamente.\n"
-            . "Por seguridad, todas las sesiones abiertas fueron cerradas.\n\n"
-            . "Inicia sesión en: {$loginUrl}\n\n"
-            . "Si tú no realizaste este cambio, contacta de inmediato al administrador de la Plataforma de Mantenimiento.";
-
-        $this->sendAndLog(
-            null,
-            $userId,
-            $recipientEmail,
-            $recipientName,
-            'auth.password.changed',
-            $subject,
-            $html,
-            $text
-        );
-    }
-    public function sendPasswordResetEmail(
-        int $userId,
-        string $recipientEmail,
-        string $recipientName,
-        string $rawToken
-    ): void {
-        $appUrl = rtrim(Env::get('APP_URL'), '/');
-        $resetUrl = $appUrl . '/reset-password.html#token=' . rawurlencode($rawToken);
-        $ttlMinutes = max(5, Env::int('PASSWORD_RESET_TTL_MINUTES', 30));
-        $safeName = self::escape($recipientName);
-        $safeResetUrl = self::escape($resetUrl);
-        $subject = 'Restablece tu contraseña | Plataforma de Mantenimiento';
-
-        $html = self::emailShell(
-            'Recuperación de contraseña',
-            <<<HTML
-<p>Hola {$safeName},</p>
-<p>Recibimos una solicitud para restablecer la contraseña de tu cuenta.</p>
-<p style="margin:28px 0;"><a href="{$safeResetUrl}" style="display:inline-block;background:#c31422;color:#ffffff;text-decoration:none;font-weight:700;padding:13px 18px;">Restablecer contraseña</a></p>
-<p style="font-size:13px;color:#5f6b76;">El enlace vence en {$ttlMinutes} minutos y sólo puede utilizarse una vez.</p>
-<p style="font-size:13px;color:#5f6b76;word-break:break-all;">Si el botón no funciona, copia esta dirección en tu navegador:<br>{$safeResetUrl}</p>
-<p style="font-size:13px;color:#5f6b76;">Si no solicitaste este cambio, puedes ignorar este mensaje. Tu contraseña actual seguirá funcionando.</p>
-HTML
-        );
-
-        $text = "Hola {$recipientName},\n\n"
-            . "Recibimos una solicitud para restablecer la contraseña de tu cuenta.\n\n"
-            . "Enlace: {$resetUrl}\n\n"
-            . "El enlace vence en {$ttlMinutes} minutos y sólo puede utilizarse una vez.\n\n"
-            . "Si no solicitaste este cambio, ignora este mensaje. Tu contraseña actual seguirá funcionando.";
-
-        $this->sendAndLog(
-            null,
-            $userId,
-            $recipientEmail,
-            $recipientName,
-            'auth.password_reset.requested',
-            $subject,
-            $html,
-            $text
-        );
-    }
-
-    public function sendPasswordResetCompletedNotification(
-        int $userId,
-        string $recipientEmail,
-        string $recipientName
-    ): void {
-        $appUrl = rtrim(Env::get('APP_URL'), '/');
-        $loginUrl = $appUrl . '/login.html';
-        $safeName = self::escape($recipientName);
-        $safeLoginUrl = self::escape($loginUrl);
-        $subject = 'Tu contraseña fue restablecida | Plataforma de Mantenimiento';
-
-        $html = self::emailShell(
-            'Contraseña restablecida',
-            <<<HTML
-<p>Hola {$safeName},</p>
-<p>La contraseña de tu cuenta fue restablecida correctamente mediante el flujo de recuperación.</p>
-<p>Por seguridad, todas las sesiones que estaban abiertas fueron cerradas y los demás enlaces de recuperación dejaron de ser válidos.</p>
-<p style="margin:28px 0;"><a href="{$safeLoginUrl}" style="display:inline-block;background:#c31422;color:#ffffff;text-decoration:none;font-weight:700;padding:13px 18px;">Iniciar sesión</a></p>
-<p style="font-size:13px;color:#5f6b76;"><strong>Si tú no realizaste este cambio, contacta de inmediato al administrador de la Plataforma de Mantenimiento.</strong></p>
-HTML
-        );
-
-        $text = "Hola {$recipientName},\n\n"
-            . "La contraseña de tu cuenta fue restablecida correctamente mediante el flujo de recuperación.\n"
-            . "Todas las sesiones abiertas fueron cerradas y los demás enlaces de recuperación dejaron de ser válidos.\n\n"
-            . "Inicia sesión en: {$loginUrl}\n\n"
-            . "Si tú no realizaste este cambio, contacta de inmediato al administrador de la Plataforma de Mantenimiento.";
-
-        $this->sendAndLog(
-            null,
-            $userId,
-            $recipientEmail,
-            $recipientName,
-            'auth.password_reset.completed',
-            $subject,
-            $html,
-            $text
-        );
-    }
     public function sendTestEmail(string $recipientEmail): void
     {
         if (!filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
