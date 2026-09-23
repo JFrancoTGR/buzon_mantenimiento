@@ -1,4 +1,8 @@
 import { apiRequest, apiFormRequest } from '../core/api.js';
+import {
+  handleCoreBoundaryError,
+  redirectToCorePasswordChange,
+} from '../core/authBoundary.js';
 import { applyPermissionVisibility, hasPermission } from '../core/permissions.js';
 import { setupSidebar } from '../components/sidebar.js';
 import { setupUserMenu } from '../components/userMenu.js';
@@ -35,7 +39,7 @@ try {
   state.user = sessionPayload.data.user;
 
   if (state.user.must_change_password) {
-    window.location.replace(withLocation('./change-password.html'));
+    redirectToCorePasswordChange();
     throw new Error('Redirección requerida.');
   }
 
@@ -59,12 +63,14 @@ try {
 
   loadNotifications();
 } catch (error) {
-  if ([401, 428].includes(Number(error?.status))) {
-    window.location.replace(error.status === 428
-      ? withLocation('./change-password.html')
-      : withLocation('./login.html'));
-  } else if (!String(error?.message || '').includes('Redirección')) {
-    showPageError(error?.message || 'No fue posible preparar el formulario.');
+  if (
+    !handleCoreBoundaryError(error)
+    && !String(error?.message || '').includes('Redirección')
+  ) {
+    showPageError(
+      error?.message
+      || 'No fue posible preparar el formulario.'
+    );
   }
 }
 
@@ -414,13 +420,14 @@ async function submitTicket(event) {
     releaseObjectUrls();
     window.location.replace(`./ticket.html?id=${encodeURIComponent(ticket.id)}`);
   } catch (error) {
-    if ([401, 428].includes(Number(error?.status))) {
-      window.location.replace(error.status === 428
-        ? withLocation('./change-password.html')
-        : withLocation('./login.html'));
+    if (handleCoreBoundaryError(error)) {
       return;
     }
-    showFormMessage(error.message || 'No fue posible crear el reporte.', 'error');
+
+    showFormMessage(
+      error.message || 'No fue posible crear el reporte.',
+      'error'
+    );
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
   } finally {
     setSubmitting(false);
@@ -497,9 +504,6 @@ function getLocationCode() {
   return /^[a-z0-9_]{1,50}$/.test(code) ? code : '';
 }
 
-function withLocation(path) {
-  return locationCode ? `${path}?location=${encodeURIComponent(locationCode)}` : path;
-}
 
 function fileKey(file) {
   return `${file.name}:${file.size}:${file.lastModified}`;

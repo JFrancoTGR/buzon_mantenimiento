@@ -1,9 +1,7 @@
 import { apiRequest } from '../core/api.js';
 import { setupDropdown } from './dropdown.js';
-import { setupPasswordVisibility } from './passwordVisibility.js';
 
 export function setupUserMenu(user) {
-  setupPasswordVisibility();
   const container = document.querySelector('[data-user-dropdown]');
   const trigger = document.querySelector('[data-user-trigger]');
   const panel = document.querySelector('[data-user-panel]');
@@ -31,16 +29,17 @@ export function setupUserMenu(user) {
 
   logoutButton?.addEventListener('click', async () => {
     logoutButton.disabled = true;
+
     try {
-      await apiRequest('./api/auth/logout.php', {
+      await apiRequest('/api/auth/logout', {
         method: 'POST',
         body: JSON.stringify({}),
       });
     } catch {
-      // La redirección también limpia el estado visual si el servidor no responde.
+      // La navegación a Core evita dejar al usuario dentro de Maintenance.
     } finally {
       dropdown.close();
-      window.location.replace('./login.html');
+      window.location.replace('/login');
     }
   });
 }
@@ -49,16 +48,43 @@ function configureAccountNavigation(panel, dropdown) {
   if (!panel) return;
 
   const items = Array.from(panel.querySelectorAll('.dropdown__item'));
-  const profileItem = panel.querySelector('[data-account-profile]')
-    || items.find((item) => ['mi cuenta', 'mi perfil'].includes(normalizeLabel(item.textContent)));
-  const securityItem = panel.querySelector('[data-account-security]')
-    || items.find((item) => normalizeLabel(item.textContent) === 'cambiar contraseña');
 
-  configureNavigationItem(profileItem, './profile.html', 'Mi perfil', dropdown);
-  configureNavigationItem(securityItem, './profile.html#security', 'Cambiar contraseña', dropdown);
+  const profileItem =
+    panel.querySelector('[data-account-profile]')
+    || items.find((item) =>
+      ['mi cuenta', 'mi perfil'].includes(
+        normalizeLabel(item.textContent)
+      )
+    );
+
+  const securityItem =
+    panel.querySelector('[data-account-security]')
+    || items.find((item) =>
+      normalizeLabel(item.textContent) ===
+        'cambiar contraseña'
+    );
+
+  configureNavigationItem(
+    profileItem,
+    '/account',
+    'Mi perfil',
+    dropdown
+  );
+
+  configureNavigationItem(
+    securityItem,
+    '/change-password',
+    'Cambiar contraseña',
+    dropdown
+  );
 }
 
-function configureNavigationItem(element, href, label, dropdown) {
+function configureNavigationItem(
+  element,
+  href,
+  label,
+  dropdown
+) {
   if (!element) return;
 
   element.removeAttribute('data-coming-soon');
@@ -66,7 +92,10 @@ function configureNavigationItem(element, href, label, dropdown) {
 
   if (element.tagName === 'A') {
     element.setAttribute('href', href);
-    element.addEventListener('click', () => dropdown.close());
+    element.addEventListener(
+      'click',
+      () => dropdown.close()
+    );
     return;
   }
 
@@ -78,8 +107,13 @@ function configureNavigationItem(element, href, label, dropdown) {
 
 function replaceTextLabel(element, label) {
   const textNodes = Array.from(element.childNodes)
-    .filter((node) => node.nodeType === Node.TEXT_NODE);
-  const labelNode = textNodes.find((node) => String(node.textContent || '').trim() !== '');
+    .filter((node) =>
+      node.nodeType === Node.TEXT_NODE
+    );
+
+  const labelNode = textNodes.find((node) =>
+    String(node.textContent || '').trim() !== ''
+  );
 
   if (labelNode) {
     labelNode.textContent = label;
@@ -91,5 +125,8 @@ function replaceTextLabel(element, label) {
 }
 
 function normalizeLabel(value) {
-  return String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
 }

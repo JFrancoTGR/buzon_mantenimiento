@@ -10,11 +10,18 @@ DirectoryIndex public/index.php
   RewriteBase /maintenance/
 
   # =========================================================
-  # Flujos de identidad migrados al Core
+  # Identidad y administración global pertenecen al Core
   # =========================================================
 
-  RewriteRule ^register\.html$ /register [R=302,L,NE,NC]
-  RewriteRule ^verify-email\.html$ /verify-email [R=302,L,NE,NC]
+  RewriteRule ^(?:public/)?login\.html$ /login [R=302,L,NE,NC]
+  RewriteRule ^(?:public/)?register\.html$ /register [R=302,L,NE,NC]
+  RewriteRule ^(?:public/)?verify-email\.html$ /verify-email [R=302,L,NE,NC]
+  RewriteRule ^(?:public/)?accept-invitation\.html$ /accept-invitation [R=302,L,NE,NC]
+  RewriteRule ^(?:public/)?forgot-password\.html$ /forgot-password [R=302,L,NE,NC]
+  RewriteRule ^(?:public/)?reset-password\.html$ /reset-password [R=302,L,NE,NC]
+  RewriteRule ^(?:public/)?change-password\.html$ /change-password [R=302,L,NE,NC]
+  RewriteRule ^(?:public/)?profile\.html$ /account [R=302,L,NE,NC]
+  RewriteRule ^(?:public/)?users\.html$ /admin/users [R=302,L,NE,NC]
 
   # =========================================================
   # Protección de capas privadas
@@ -36,10 +43,10 @@ DirectoryIndex public/index.php
   RewriteRule ^api/(.*)$ public/api/$1 [L,NC]
 
   # =========================================================
-  # Páginas públicas propias de Maintenance
+  # Páginas operativas propias de Maintenance
   # =========================================================
 
-  RewriteRule ^(login|accept-invitation|change-password|dashboard|new-ticket|ticket|tickets|users|profile|forgot-password|reset-password)\.html$ public/$1.html [L,NC]
+  RewriteRule ^(dashboard|new-ticket|ticket|tickets)\.html$ public/$1.html [L,NC]
 
   # =========================================================
   # Entrada principal de Maintenance

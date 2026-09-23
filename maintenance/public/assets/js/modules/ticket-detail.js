@@ -1,4 +1,8 @@
 import { apiRequest, apiFormRequest } from '../core/api.js';
+import {
+  handleCoreBoundaryError,
+  redirectToCorePasswordChange,
+} from '../core/authBoundary.js';
 import { applyPermissionVisibility } from '../core/permissions.js';
 import { setupSidebar } from '../components/sidebar.js';
 import { setupUserMenu } from '../components/userMenu.js';
@@ -19,15 +23,18 @@ let detail;
 try {
   const payload = await apiRequest('./api/auth/me.php');
   user = payload.data.user;
+
   if (user.must_change_password) {
     user = null;
-    window.location.replace('./change-password.html');
+    redirectToCorePasswordChange();
   }
-} catch {
-  const returnPath = Number.isInteger(ticketId) && ticketId > 0
-    ? `./ticket.html?id=${ticketId}`
-    : './dashboard.html';
-  window.location.replace(`./login.html?return=${encodeURIComponent(returnPath)}`);
+} catch (error) {
+  if (!handleCoreBoundaryError(error)) {
+    showFatalError(
+      error?.message
+      || 'No fue posible validar tu sesión.'
+    );
+  }
 }
 
 if (user) {
@@ -64,7 +71,7 @@ async function loadTicket() {
     renderTicket(detail);
     setLoading(false);
   } catch (error) {
-    handleAuthError(error);
+    if (handleAuthError(error)) return;
     showFatalError(error.message || 'No fue posible cargar el ticket.');
   }
 }
@@ -173,7 +180,7 @@ async function startReview(transition, button) {
       customClass: { popup: 'app-alert', confirmButton: 'app-alert__confirm' },
     });
   } catch (error) {
-    handleAuthError(error);
+    if (handleAuthError(error)) return;
     await showErrorAlert(error.message || 'No fue posible actualizar el ticket.');
     if (Number(error.status) === 409) await loadTicket();
   } finally {
@@ -792,7 +799,7 @@ async function decideAuthorization(request, decision, button) {
       customClass: { popup: 'app-alert', confirmButton: 'app-alert__confirm' },
     });
   } catch (error) {
-    handleAuthError(error);
+    if (handleAuthError(error)) return;
     await showErrorAlert(error.message || 'No fue posible registrar la decisión.');
     if ([409, 422].includes(Number(error.status))) await loadTicket();
   } finally {
@@ -893,7 +900,7 @@ async function submitAuthorizationRequest(event) {
       customClass: { popup: 'app-alert', confirmButton: 'app-alert__confirm' },
     });
   } catch (error) {
-    handleAuthError(error);
+    if (handleAuthError(error)) return;
     setMessage(message, error.message || 'No fue posible enviar la solicitud.', 'error');
     if ([409, 422].includes(Number(error.status)) && Number(error.status) === 409) {
       await loadTicket();
@@ -960,7 +967,7 @@ async function submitQuotation(event) {
       customClass: { popup: 'app-alert', confirmButton: 'app-alert__confirm' },
     });
   } catch (error) {
-    handleAuthError(error);
+    if (handleAuthError(error)) return;
     setMessage(message, error.message || 'No fue posible guardar la cotización.', 'error');
     if ([409, 422].includes(Number(error.status))) {
       if (Number(error.status) === 409) await loadTicket();
@@ -1025,7 +1032,7 @@ async function submitCompletion(event) {
       customClass: { popup: 'app-alert', confirmButton: 'app-alert__confirm' },
     });
   } catch (error) {
-    handleAuthError(error);
+    if (handleAuthError(error)) return;
     setMessage(message, error.message || 'No fue posible registrar la terminación.', 'error');
     if (Number(error.status) === 409) await loadTicket();
   } finally {
@@ -1157,7 +1164,7 @@ async function submitComment(event) {
     renderComments(detail.comments, true);
     setMessage(message, 'Comentario publicado.', 'success');
   } catch (error) {
-    handleAuthError(error);
+    if (handleAuthError(error)) return;
     setMessage(message, error.message || 'No fue posible publicar el comentario.', 'error');
   } finally {
     button.disabled = false;
@@ -1493,7 +1500,7 @@ async function startAuthorizedExecution(button) {
       customClass: { popup: 'app-alert', confirmButton: 'app-alert__confirm' },
     });
   } catch (error) {
-    handleAuthError(error);
+    if (handleAuthError(error)) return;
     await showErrorAlert(error.message || 'No fue posible iniciar la ejecución.');
     if ([409, 422].includes(Number(error.status))) await loadTicket();
   } finally {
@@ -1556,7 +1563,7 @@ async function selectProcessingRoute(processingRoute, button) {
       customClass: { popup: 'app-alert', confirmButton: 'app-alert__confirm' },
     });
   } catch (error) {
-    handleAuthError(error);
+    if (handleAuthError(error)) return;
     await showErrorAlert(error.message || 'No fue posible seleccionar la ruta de atención.');
     if ([409, 422].includes(Number(error.status))) await loadTicket();
   } finally {
@@ -1631,9 +1638,7 @@ function assignmentLabel(type) {
 }
 
 function handleAuthError(error) {
-  if ([401, 428].includes(Number(error?.status))) {
-    window.location.replace(error.status === 428 ? './change-password.html' : './login.html');
-  }
+  return handleCoreBoundaryError(error);
 }
 
 async function showErrorAlert(message) {

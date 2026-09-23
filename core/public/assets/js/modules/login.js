@@ -12,6 +12,7 @@ setupPasswordVisibility();
 const form = document.querySelector('[data-login-form]');
 const message = document.querySelector('[data-message]');
 const submitButton = form?.querySelector('button[type="submit"]');
+const returnPath = getSafeMaintenanceReturnPath();
 
 initialize();
 
@@ -34,11 +35,13 @@ form?.addEventListener('submit', async (event) => {
     });
 
     if (payload.data.user.must_change_password) {
-      window.location.replace('/change-password');
+      window.location.replace(
+        withReturn('/change-password', returnPath)
+      );
       return;
     }
 
-    window.location.replace('/');
+    window.location.replace(returnPath || '/');
   } catch (error) {
     setMessage(
       error.message || 'No fue posible iniciar sesión.',
@@ -58,6 +61,43 @@ async function initialize() {
       'error'
     );
   }
+}
+
+function getSafeMaintenanceReturnPath() {
+  const value =
+    new URLSearchParams(window.location.search)
+      .get('return')
+    || '';
+
+  if (!value) {
+    return '';
+  }
+
+  try {
+    const url = new URL(value, window.location.origin);
+
+    const isMaintenancePath =
+      url.pathname === '/maintenance'
+      || url.pathname === '/maintenance/'
+      || url.pathname.startsWith('/maintenance/');
+
+    if (
+      url.origin !== window.location.origin
+      || !isMaintenancePath
+    ) {
+      return '';
+    }
+
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return '';
+  }
+}
+
+function withReturn(path, returnPathValue) {
+  return returnPathValue
+    ? `${path}?return=${encodeURIComponent(returnPathValue)}`
+    : path;
 }
 
 function setLoading(isLoading) {

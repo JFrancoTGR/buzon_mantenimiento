@@ -17,6 +17,8 @@ const message =
 const submitButton =
   document.querySelector('[data-submit-button]');
 
+const returnPath = getSafeMaintenanceReturnPath();
+
 form?.addEventListener('submit', async (event) => {
   event.preventDefault();
 
@@ -53,13 +55,17 @@ form?.addEventListener('submit', async (event) => {
 
     await showSuccess();
 
-    window.location.replace('/login');
+    window.location.replace(
+      withReturn('/login', returnPath)
+    );
   } catch (error) {
     if (
       error.status === 401
       && error.code !== 'current_password_invalid'
     ) {
-      window.location.replace('/login');
+      window.location.replace(
+        withReturn('/login', returnPath)
+      );
       return;
     }
 
@@ -72,6 +78,43 @@ form?.addEventListener('submit', async (event) => {
     setLoading(false);
   }
 });
+
+function getSafeMaintenanceReturnPath() {
+  const value =
+    new URLSearchParams(window.location.search)
+      .get('return')
+    || '';
+
+  if (!value) {
+    return '';
+  }
+
+  try {
+    const url = new URL(value, window.location.origin);
+
+    const isMaintenancePath =
+      url.pathname === '/maintenance'
+      || url.pathname === '/maintenance/'
+      || url.pathname.startsWith('/maintenance/');
+
+    if (
+      url.origin !== window.location.origin
+      || !isMaintenancePath
+    ) {
+      return '';
+    }
+
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return '';
+  }
+}
+
+function withReturn(path, returnPathValue) {
+  return returnPathValue
+    ? `${path}?return=${encodeURIComponent(returnPathValue)}`
+    : path;
+}
 
 function setLoading(isLoading) {
   if (!submitButton) return;

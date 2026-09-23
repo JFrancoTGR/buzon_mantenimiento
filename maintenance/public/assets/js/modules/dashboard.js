@@ -1,4 +1,8 @@
 import { apiRequest } from '../core/api.js';
+import {
+  handleCoreBoundaryError,
+  redirectToCorePasswordChange,
+} from '../core/authBoundary.js';
 import { applyPermissionVisibility } from '../core/permissions.js';
 import { setupSidebar } from '../components/sidebar.js';
 import { setupUserMenu } from '../components/userMenu.js';
@@ -9,17 +13,28 @@ const dashboardError = document.querySelector('[data-dashboard-error]');
 
 let user;
 let isReporterView = false;
+
 try {
   const payload = await apiRequest('./api/auth/me.php');
   user = payload.data.user;
-  isReporterView = Array.isArray(user.roles) && user.roles.includes('reporter');
+  isReporterView =
+    Array.isArray(user.roles)
+    && user.roles.includes('reporter');
 
   if (user.must_change_password) {
     user = null;
-    window.location.replace('./change-password.html');
+    redirectToCorePasswordChange();
   }
-} catch {
-  window.location.replace('./login.html');
+} catch (error) {
+  if (
+    !handleCoreBoundaryError(error)
+    && dashboardError
+  ) {
+    dashboardError.hidden = false;
+    dashboardError.textContent =
+      error?.message
+      || 'No fue posible validar tu sesión.';
+  }
 }
 
 if (user) {
@@ -236,9 +251,7 @@ function renderActivityError() {
 }
 
 function handleAuthenticationError(error) {
-  if ([401, 428].includes(Number(error?.status))) {
-    window.location.replace(error.status === 428 ? './change-password.html' : './login.html');
-  }
+  return handleCoreBoundaryError(error);
 }
 
 function setupComingSoonActions() {
