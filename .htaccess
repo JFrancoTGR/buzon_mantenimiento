@@ -54,7 +54,7 @@ RewriteRule ^admin/users/?$ core/public/admin/users.php [L,NC]
 
 # Assets públicos del Core.
 
-RewriteRule ^assets/(.\*)$ core/public/assets/$1 [L]
+RewriteRule ^assets/(.*)$ core/public/assets/$1 [L]
 
 # API central de autenticación.
 
