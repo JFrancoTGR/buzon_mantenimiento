@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use App\Core\Http;
 use App\Exceptions\HttpException;
-use App\Security\Csrf;
+use EUTools\Shared\Security\Csrf;
 use App\Services\AuthorizationService;
 
 $services = require dirname(__DIR__, 3) . '/bootstrap/app.php';

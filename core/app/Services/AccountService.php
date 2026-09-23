@@ -6,7 +6,7 @@ namespace App\Services;
 
 use App\Config\Env;
 use App\Exceptions\HttpException;
-use App\Security\SessionManager;
+use EUTools\Shared\Security\SessionRuntime;
 use EUTools\Shared\Mail\Mailer as SharedMailer;
 use EUTools\Shared\Mail\MailMessage;
 use PDO;
@@ -306,7 +306,7 @@ final class AccountService
             throw $exception;
         }
 
-        SessionManager::destroyLocal();
+        SessionRuntime::destroyLocal();
 
         $recipientName = trim(
             (string) $user['first_name']

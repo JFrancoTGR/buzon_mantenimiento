@@ -7,10 +7,11 @@ namespace App\Services;
 use App\Config\Env;
 use App\Core\Http;
 use App\Exceptions\HttpException;
-use App\Security\SessionManager;
 use DateInterval;
 use DateTimeImmutable;
 use DateTimeZone;
+use EUTools\Shared\Security\Csrf;
+use EUTools\Shared\Security\SessionRuntime;
 use PDO;
 use Throwable;
 
@@ -211,7 +212,8 @@ final class AuthService
 
             $this->pdo->commit();
 
-            SessionManager::establish($userId, $databaseSessionId);
+            SessionRuntime::establish($userId, $databaseSessionId);
+            Csrf::rotate();
 
             return $this->currentUser();
         } catch (Throwable $exception) {
@@ -226,7 +228,7 @@ final class AuthService
     /** @return array<string, mixed> */
     public function currentUser(): array
     {
-        $auth = SessionManager::authData();
+        $auth = SessionRuntime::authData();
 
         if ($auth === null) {
             throw new HttpException(
@@ -275,7 +277,7 @@ final class AuthService
         || (string) $row['status'] !== 'active'
         || ! hash_equals(
             (string) ($row['session_hash'] ?? ''),
-            SessionManager::sessionHash()
+            SessionRuntime::sessionHash()
         )
         || new DateTimeImmutable(
             (string) $row['expires_at'],
@@ -331,7 +333,7 @@ final class AuthService
 
     public function logout(bool $recordAudit = true): void
     {
-        $auth = SessionManager::authData();
+        $auth = SessionRuntime::authData();
 
         if ($auth !== null) {
             $statement = $this->pdo->prepare(
@@ -357,7 +359,7 @@ final class AuthService
             }
         }
 
-        SessionManager::destroyLocal();
+        SessionRuntime::destroyLocal();
     }
 
     public static function validatePasswordStrength(
@@ -439,7 +441,7 @@ final class AuthService
             new DateTimeZone('UTC')
         );
 
-        $currentSession = SessionManager::authData();
+        $currentSession = SessionRuntime::authData();
 
         $this->pdo->beginTransaction();
 
@@ -499,10 +501,12 @@ final class AuthService
             throw $exception;
         }
 
-        SessionManager::establish(
+        SessionRuntime::establish(
             $userId,
             $databaseSessionId
         );
+
+        Csrf::rotate();
 
         return $this->currentUser();
     }
@@ -513,7 +517,7 @@ final class AuthService
     ): int {
         session_regenerate_id(true);
 
-        $sessionHash = SessionManager::sessionHash();
+        $sessionHash = SessionRuntime::sessionHash();
 
         $expiresAt = $now
             ->add(

@@ -6,7 +6,7 @@ namespace App\Services;
 
 use App\Config\Env;
 use App\Exceptions\HttpException;
-use App\Security\SessionManager;
+use EUTools\Shared\Security\SessionRuntime;
 use DateInterval;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -24,7 +24,7 @@ final class MaintenanceContextService
     /** @return array<string, mixed> */
     public function currentUser(): array
     {
-        $auth = SessionManager::authData();
+        $auth = SessionRuntime::authData();
 
         if ($auth === null) {
             throw new HttpException(
@@ -73,7 +73,7 @@ final class MaintenanceContextService
             || (string) $row['status'] !== 'active'
             || !hash_equals(
                 (string) ($row['session_hash'] ?? ''),
-                SessionManager::sessionHash()
+                SessionRuntime::sessionHash()
             )
             || new DateTimeImmutable(
                 (string) $row['expires_at'],

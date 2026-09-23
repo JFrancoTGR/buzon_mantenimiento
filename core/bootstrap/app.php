@@ -6,7 +6,6 @@ use App\Config\Env;
 use App\Core\Database;
 use App\Core\Http;
 use App\Exceptions\HttpException;
-use App\Security\SessionManager;
 use App\Services\AccountService;
 use App\Services\AuditService;
 use App\Services\AuthService;
@@ -18,6 +17,9 @@ use App\Services\UserInvitationService;
 use App\Services\WebAuthService;
 use EUTools\Shared\Mail\Mailer as SharedMailer;
 use EUTools\Shared\Mail\TemplateRegistry;
+use EUTools\Shared\Security\Csrf;
+use EUTools\Shared\Security\CsrfException;
+use EUTools\Shared\Security\SessionRuntime;
 
 const ROOT_PATH = __DIR__ . '/..';
 
@@ -62,7 +64,30 @@ ini_set('display_errors', $debug ? '1' : '0');
 error_reporting(E_ALL);
 
 Http::applySecurityHeaders();
-SessionManager::start();
+SessionRuntime::start([
+    'name' => Env::get(
+        'SESSION_NAME',
+        'EUTOOLSSESSID'
+    ),
+    'lifetime_minutes' => Env::int(
+        'SESSION_LIFETIME_MINUTES',
+        30
+    ),
+    'secure_cookie' => Env::bool(
+        'SESSION_SECURE_COOKIE',
+        true
+    ),
+    'same_site' => Env::get(
+        'SESSION_SAME_SITE',
+        'Lax'
+    ),
+    'cookie_path' => Env::get(
+        'SESSION_COOKIE_PATH',
+        '/'
+    ),
+]);
+
+Csrf::token();
 
 $pdo = Database::connection();
 
@@ -178,7 +203,10 @@ set_exception_handler(
     static function (
         Throwable $exception
     ) use ($debug): void {
-        if ($exception instanceof HttpException) {
+        if (
+            $exception instanceof HttpException
+            || $exception instanceof CsrfException
+        ) {
             Http::json([
                 'ok' => false,
                 'error' => [

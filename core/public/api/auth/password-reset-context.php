@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use App\Core\Http;
-use App\Security\Csrf;
+use EUTools\Shared\Security\Csrf;
 
 $services = require dirname(__DIR__, 3) . '/bootstrap/app.php';
 
