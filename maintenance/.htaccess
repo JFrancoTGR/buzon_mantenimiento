@@ -30,6 +30,12 @@ DirectoryIndex public/index.php
   RewriteRule ^(?:app|bootstrap|scripts|sql|storage|vendor)(?:/|$) - [F,L,NC]
 
   # =========================================================
+  # Canonicalización de páginas operativas
+  # =========================================================
+
+  RewriteRule ^public/(dashboard|new-ticket|ticket|tickets)\.html$ /maintenance/$1.html [R=302,L,NE,NC]
+
+  # =========================================================
   # Evita ciclos sobre reescrituras internas
   # =========================================================
 
@@ -44,9 +50,10 @@ DirectoryIndex public/index.php
 
   # =========================================================
   # Páginas operativas propias de Maintenance
+  # Gate server-side antes de enviar cualquier HTML.
   # =========================================================
 
-  RewriteRule ^(dashboard|new-ticket|ticket|tickets)\.html$ public/$1.html [L,NC]
+  RewriteRule ^(dashboard|new-ticket|ticket|tickets)\.html$ public/operational.php?view=$1 [L,QSA,NC]
 
   # =========================================================
   # Entrada principal de Maintenance
