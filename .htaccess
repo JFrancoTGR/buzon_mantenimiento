@@ -9,6 +9,14 @@ Require all denied
 <IfModule mod_rewrite.c>
   RewriteEngine On
 
+# Durante desarrollo/migración:
+
+# CSS y JS siempre deben revalidarse antes de reutilizar caché.
+
+<FilesMatch "\.(?:css|js)$">
+Header always set Cache-Control "no-cache, must-revalidate"
+</FilesMatch>
+
 # Nunca exponer infraestructura compartida de EU Tools.
 
 RewriteRule ^shared(?:/|$) - [F,L,NC]
@@ -18,9 +26,11 @@ RewriteRule ^shared(?:/|$) - [F,L,NC]
 RewriteRule ^core/(?:app|bootstrap|scripts|sql|storage|vendor)(?:/|$) - [F,L,NC]
 
 # Hub protegido del Core.
+
 RewriteRule ^$ core/public/index.php [L]
 
 # Login del Core.
+
 RewriteRule ^login/?$ core/public/login.php [L,NC]
 RewriteRule ^forgot-password/?$ core/public/forgot-password.php [L,NC]
 RewriteRule ^reset-password/?$ core/public/reset-password.php [L,NC]
@@ -28,31 +38,38 @@ RewriteRule ^change-password/?$ core/public/change-password.php [L,NC]
 RewriteRule ^account/?$ core/public/account.php [L,NC]
 
 # Registro y activación de cuentas Core.
+
 RewriteRule ^register/?$ core/public/register.php [L,NC]
 RewriteRule ^verify-email/?$ core/public/verify-email.php [L,NC]
 RewriteRule ^accept-invitation/?$ core/public/accept-invitation.php [L,NC]
 
 # Compatibilidad temporal con URLs heredadas de Maintenance.
+
 RewriteRule ^maintenance/register\.html$ /register [R=302,L,NE,NC]
 RewriteRule ^maintenance/verify-email\.html$ /verify-email [R=302,L,NE,NC]
 
 # Administración web del Core.
+
 RewriteRule ^admin/users/?$ core/public/admin/users.php [L,NC]
 
 # Assets públicos del Core.
-RewriteRule ^assets/(.*)$ core/public/assets/$1 [L]
+
+RewriteRule ^assets/(.\*)$ core/public/assets/$1 [L]
 
 # API central de autenticación.
 
 RewriteRule ^api/auth/(csrf|login|me|logout|register|resend-verification|verify-email|invitation-context|accept-invitation|forgot-password|password-reset-context|reset-password|change-password)/?$ core/public/api/auth/$1.php [L,NC]
 
 # API global de cuenta.
+
 RewriteRule ^api/account/(profile|update-profile)/?$ core/public/api/account/$1.php [L,NC]
 
 # API del Hub.
+
 RewriteRule ^api/hub/apps/?$ core/public/api/hub/apps.php [L,NC]
 
 # Administración global de usuarios.
+
 RewriteRule ^api/admin/users/(context|list|create|resend-invitation|revoke-invitation|change-status|update-access)/?$ core/public/api/admin/users/$1.php [L,NC]
 
 # Nunca exponer capas privadas de Maintenance.
