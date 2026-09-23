@@ -9,7 +9,7 @@
 @import url('./components/dropdown.css');
 @import url('./layouts/dashboard-layout.css');
 @import url('./pages/dashboard.css');
-@import url('./pages/auth.css');
+@import url('./components/alerts.css');
 @import url('./pages/new-ticket.css');
 @import url('./pages/ticket-detail.css');
 @import url('./pages/tickets.css');

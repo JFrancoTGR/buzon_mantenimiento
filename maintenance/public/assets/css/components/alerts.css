@@ -1,0 +1,17 @@
+.swal2-popup.app-alert {
+  border: 1px solid var(--border-soft);
+  border-radius: 0;
+  font-family: 'Archivo', Arial, sans-serif;
+  box-shadow: var(--shadow-md);
+}
+
+.swal2-confirm.app-alert__confirm {
+  border-radius: 0;
+  background: var(--primary) !important;
+  font-family: inherit;
+  font-weight: 700;
+}
+
+.swal2-confirm.app-alert__confirm:hover {
+  background: var(--primary-dark) !important;
+}
