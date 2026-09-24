@@ -219,7 +219,17 @@ function setupAppsHomeAction() {
     <span class="my-apps-link__label">Mis Apps</span>
   `;
 
-  userDropdown.insertAdjacentElement('beforebegin', link);
+  const notificationsDropdown = topbarEnd.querySelector(
+    '[data-notifications-dropdown]',
+  );
+
+  const insertionTarget =
+    notificationsDropdown || userDropdown;
+
+  insertionTarget.insertAdjacentElement(
+    'beforebegin',
+    link,
+  );
 }
 
 function setupThemePlaceholder() {

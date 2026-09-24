@@ -337,7 +337,7 @@
   gap: 8px;
   padding: 0 14px;
   border: 1px solid var(--primary);
-  border-radius: 999px;
+  border-radius: 0;
   background: var(--primary-soft);
   color: var(--primary-dark);
   font-size: 0.78rem;
