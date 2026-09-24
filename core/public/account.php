@@ -119,7 +119,8 @@ if ($initials === '') {
       </nav>
 
       <div class="sidebar__footer">
-        Plataforma corporativa EU Tools
+        <strong>Plataforma Corporativa EU Tools</strong>
+        <span>v0.0.1</span>
       </div>
     </aside>
 

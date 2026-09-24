@@ -254,3 +254,240 @@
     padding: var(--space-5) var(--space-4);
   }
 }
+
+/* =========================
+   UI SHELL v0.0.1
+   ========================= */
+
+.app-page {
+  --sidebar-collapsed-width: 76px;
+}
+
+.sidebar {
+  transition:
+    transform 220ms ease,
+    width 220ms ease;
+}
+
+.sidebar__brand {
+  position: relative;
+}
+
+.app-workspace {
+  transition: margin-left 220ms ease;
+}
+
+.sidebar__footer strong,
+.sidebar__footer span {
+  display: block;
+}
+
+.sidebar__footer strong {
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 720;
+  line-height: 1.35;
+}
+
+.sidebar__footer span {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 0.64rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+}
+
+.sidebar-collapse-toggle {
+  display: none;
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  right: -13px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--border-soft);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transform: translateY(-50%);
+  box-shadow: 0 2px 8px rgb(17 24 31 / 10%);
+}
+
+.sidebar-collapse-toggle:hover,
+.sidebar-collapse-toggle:focus-visible {
+  border-color: var(--primary);
+  color: var(--primary-dark);
+  outline: none;
+}
+
+.sidebar-collapse-toggle svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 180ms ease;
+}
+
+.my-apps-link {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid var(--primary);
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  font-size: 0.78rem;
+  font-weight: 760;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.my-apps-link:hover,
+.my-apps-link:focus-visible {
+  background: var(--surface-strong);
+  border-color: var(--primary-dark);
+  color: var(--primary-dark);
+  outline: none;
+}
+
+.my-apps-link:active {
+  transform: translateY(1px);
+}
+
+.my-apps-link svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+}
+
+.theme-preference {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.theme-preference__button {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 6px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+}
+
+.theme-preference__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.theme-preference__copy strong,
+.theme-preference__copy small {
+  display: block;
+}
+
+.theme-preference__copy strong {
+  font-size: 0.78rem;
+  font-weight: 680;
+}
+
+.theme-preference__copy small {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 0.65rem;
+}
+
+.theme-switch {
+  position: relative;
+  width: 34px;
+  height: 18px;
+  flex: 0 0 auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: var(--surface-strong);
+}
+
+.theme-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgb(17 24 31 / 20%);
+}
+
+@media (min-width: 1025px) {
+  .sidebar-collapse-toggle {
+    display: grid;
+  }
+
+  body.sidebar-collapsed .sidebar {
+    width: var(--sidebar-collapsed-width);
+  }
+
+  body.sidebar-collapsed .app-workspace {
+    margin-left: var(--sidebar-collapsed-width);
+  }
+
+  body.sidebar-collapsed .sidebar__brand {
+    justify-content: center;
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  body.sidebar-collapsed .sidebar__brand-text,
+  body.sidebar-collapsed .nav-group__label,
+  body.sidebar-collapsed .sidebar__footer {
+    display: none;
+  }
+
+  body.sidebar-collapsed .sidebar__nav {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  body.sidebar-collapsed .nav-group + .nav-group {
+    margin-top: 12px;
+  }
+
+  body.sidebar-collapsed .nav-link {
+    justify-content: center;
+    gap: 0;
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+
+  body.sidebar-collapsed .nav-link > span {
+    display: none;
+  }
+
+  body.sidebar-collapsed .sidebar-collapse-toggle svg {
+    transform: rotate(180deg);
+  }
+}
+
+@media (max-width: 720px) {
+  .my-apps-link {
+    width: 38px;
+    min-width: 38px;
+    padding: 0;
+  }
+
+  .my-apps-link__label {
+    display: none;
+  }
+}
