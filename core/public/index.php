@@ -70,6 +70,27 @@
 <html lang="es">
 
 <head>
+  <script data-sidebar-preload>
+    (() => {
+      try {
+        const desktop = window.matchMedia(
+          '(min-width: 1025px)',
+        ).matches;
+
+        const collapsed =
+          window.localStorage.getItem(
+            'euTools.sidebarCollapsed',
+          ) === '1';
+
+        if (desktop && collapsed) {
+          document.documentElement.classList.add(
+            'sidebar-collapsed',
+          );
+        }
+      } catch {
+      }
+    })();
+  </script>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">

@@ -40,7 +40,7 @@ export function setupSidebar() {
     const collapsed =
       desktopMedia.matches && readCollapsedPreference();
 
-    document.body.classList.toggle(
+    document.documentElement.classList.toggle(
       'sidebar-collapsed',
       collapsed,
     );
@@ -80,7 +80,7 @@ export function setupSidebar() {
     if (!desktopMedia.matches) return;
 
     const collapsed =
-      !document.body.classList.contains('sidebar-collapsed');
+      !document.documentElement.classList.contains('sidebar-collapsed');
 
     writeCollapsedPreference(collapsed);
     syncCollapsedState();

@@ -435,47 +435,47 @@
     display: grid;
   }
 
-  body.sidebar-collapsed .sidebar {
+  html.sidebar-collapsed .sidebar {
     width: var(--sidebar-collapsed-width);
   }
 
-  body.sidebar-collapsed .app-workspace {
+  html.sidebar-collapsed .app-workspace {
     margin-left: var(--sidebar-collapsed-width);
   }
 
-  body.sidebar-collapsed .sidebar__brand {
+  html.sidebar-collapsed .sidebar__brand {
     justify-content: center;
     padding-right: 10px;
     padding-left: 10px;
   }
 
-  body.sidebar-collapsed .sidebar__brand-text,
-  body.sidebar-collapsed .nav-group__label,
-  body.sidebar-collapsed .sidebar__footer {
+  html.sidebar-collapsed .sidebar__brand-text,
+  html.sidebar-collapsed .nav-group__label,
+  html.sidebar-collapsed .sidebar__footer {
     display: none;
   }
 
-  body.sidebar-collapsed .sidebar__nav {
+  html.sidebar-collapsed .sidebar__nav {
     padding-right: 10px;
     padding-left: 10px;
   }
 
-  body.sidebar-collapsed .nav-group + .nav-group {
+  html.sidebar-collapsed .nav-group + .nav-group {
     margin-top: 12px;
   }
 
-  body.sidebar-collapsed .nav-link {
+  html.sidebar-collapsed .nav-link {
     justify-content: center;
     gap: 0;
     padding-right: 8px;
     padding-left: 8px;
   }
 
-  body.sidebar-collapsed .nav-link > span {
+  html.sidebar-collapsed .nav-link > span {
     display: none;
   }
 
-  body.sidebar-collapsed .sidebar-collapse-toggle svg {
+  html.sidebar-collapsed .sidebar-collapse-toggle svg {
     transform: rotate(180deg);
   }
 }
