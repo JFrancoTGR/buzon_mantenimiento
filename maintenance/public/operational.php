@@ -10,19 +10,33 @@ $services = require dirname(__DIR__) . '/bootstrap/app.php';
 header('Cache-Control: no-store, private');
 
 $views = [
-    'dashboard' => 'dashboard.html',
-    'new-ticket' => 'new-ticket.html',
-    'ticket' => 'ticket.html',
-    'tickets' => 'tickets.html',
+    'dashboard' =>
+        dirname(__DIR__)
+        . '/app/Views/operational/dashboard.php',
+
+    'new-ticket' =>
+        dirname(__DIR__)
+        . '/app/Views/operational/new-ticket.php',
+
+    'ticket' =>
+        dirname(__DIR__)
+        . '/app/Views/operational/ticket.php',
+
+    'tickets' =>
+        dirname(__DIR__)
+        . '/app/Views/operational/tickets.php',
 ];
 
 $view = isset($_GET['view'])
     ? (string) $_GET['view']
     : '';
 
-$file = $views[$view] ?? null;
+$template = $views[$view] ?? null;
 
-if ($file === null) {
+if (
+    $template === null
+    || !is_file($template)
+) {
     http_response_code(404);
     exit;
 }
@@ -32,6 +46,38 @@ function redirectOperationalRequest(
 ): void {
     header('Location: ' . $location, true, 302);
     exit;
+}
+
+function maintenanceE(
+    string $value
+): string {
+    return htmlspecialchars(
+        $value,
+        ENT_QUOTES,
+        'UTF-8'
+    );
+}
+
+/**
+ * @param array<string, mixed> $user
+ * @param array<int, string> $permissions
+ */
+function maintenanceHasAnyPermission(
+    array $user,
+    array $permissions
+): bool {
+    foreach ($permissions as $permission) {
+        if (
+            AuthorizationService::hasPermission(
+                $user,
+                $permission
+            )
+        ) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 $returnPath = $_SERVER['REQUEST_URI']
@@ -69,24 +115,162 @@ try {
     throw $exception;
 }
 
-if ((bool) ($user['must_change_password'] ?? false)) {
+if (
+    (bool) (
+        $user['must_change_password']
+        ?? false
+    )
+) {
     redirectOperationalRequest(
         '/change-password?return='
         . rawurlencode($returnPath)
     );
 }
 
-if (
-    $view === 'new-ticket'
-    && !AuthorizationService::hasPermission(
+$canViewTickets =
+    maintenanceHasAnyPermission(
+        $user,
+        [
+            'ticket.view.own',
+            'ticket.view.assigned',
+            'ticket.view.all',
+        ]
+    );
+
+$canCreateTicket =
+    AuthorizationService::hasPermission(
         $user,
         'ticket.create'
-    )
+    );
+
+$canManageCatalogs =
+    AuthorizationService::hasPermission(
+        $user,
+        'catalog.manage'
+    );
+
+$canViewAudit =
+    AuthorizationService::hasPermission(
+        $user,
+        'audit.view'
+    );
+
+$showManagement =
+    $canViewTickets
+    || $canCreateTicket;
+
+$showAdministration =
+    $canManageCatalogs
+    || $canViewAudit;
+
+if (
+    $view === 'new-ticket'
+    && !$canCreateTicket
 ) {
     redirectOperationalRequest(
         '/maintenance/dashboard.html'
     );
 }
-header('Content-Type: text/html; charset=UTF-8');
 
-readfile(__DIR__ . '/' . $file);
+if (
+    in_array(
+        $view,
+        ['tickets', 'ticket'],
+        true
+    )
+    && !$canViewTickets
+) {
+    redirectOperationalRequest(
+        '/maintenance/dashboard.html'
+    );
+}
+
+$activeNav = match ($view) {
+    'ticket' => 'tickets',
+    default => $view,
+};
+
+$firstName = trim(
+    (string) (
+        $user['first_name']
+        ?? ''
+    )
+);
+
+$lastName = trim(
+    (string) (
+        $user['last_name']
+        ?? ''
+    )
+);
+
+$fullName = trim(
+    (string) (
+        $user['full_name']
+        ?? ''
+    )
+);
+
+if ($fullName === '') {
+    $fullName = trim(
+        $firstName . ' ' . $lastName
+    );
+}
+
+if ($fullName === '') {
+    $fullName = 'Usuario';
+}
+
+$email = (string) (
+    $user['email']
+    ?? ''
+);
+
+$firstInitial =
+    $firstName !== ''
+        ? (
+            function_exists('mb_substr')
+                ? mb_substr(
+                    $firstName,
+                    0,
+                    1
+                )
+                : substr(
+                    $firstName,
+                    0,
+                    1
+                )
+        )
+        : '';
+
+$lastInitial =
+    $lastName !== ''
+        ? (
+            function_exists('mb_substr')
+                ? mb_substr(
+                    $lastName,
+                    0,
+                    1
+                )
+                : substr(
+                    $lastName,
+                    0,
+                    1
+                )
+        )
+        : '';
+
+$initials = strtoupper(
+    $firstInitial
+    . $lastInitial
+);
+
+if ($initials === '') {
+    $initials = 'US';
+}
+
+header(
+    'Content-Type: text/html; charset=UTF-8'
+);
+
+require $template;

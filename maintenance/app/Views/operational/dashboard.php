@@ -11,126 +11,12 @@
 </head>
 <body class="app-page">
   <div class="app-shell">
-    <aside class="sidebar" id="app-sidebar" aria-label="Navegación principal">
-      <div class="sidebar__brand">
-        <span class="sidebar__mark" aria-hidden="true">M</span>
-        <span class="sidebar__brand-text">
-          <strong>Mantenimiento</strong>
-          <span>Estrategia Urbana</span>
-        </span>
-      </div>
-
-      <nav class="sidebar__nav">
-        <section class="nav-group">
-          <p class="nav-group__label">Inicio</p>
-          <a class="nav-link" href="./dashboard.html" aria-current="page">
-            <svg aria-hidden="true"><use href="#icon-dashboard"></use></svg>
-            <span>Dashboard</span>
-          </a>
-        </section>
-
-        <section class="nav-group" data-nav-group>
-          <p class="nav-group__label">Gestión</p>
-          <a class="nav-link" href="./tickets.html" data-permissions="ticket.view.own,ticket.view.assigned,ticket.view.all">
-            <svg aria-hidden="true"><use href="#icon-tickets"></use></svg>
-            <span>Tickets</span>
-          </a>
-          <a class="nav-link" href="./new-ticket.html" data-permissions="ticket.create">
-            <svg aria-hidden="true"><use href="#icon-plus-square"></use></svg>
-            <span>Nuevo reporte</span>
-          </a>
-        </section>
-
-        <section class="nav-group" data-nav-group>
-          <p class="nav-group__label">Administración</p>
-
-          <a class="nav-link" href="#" data-coming-soon data-permissions="catalog.manage">
-            <svg aria-hidden="true"><use href="#icon-catalog"></use></svg>
-            <span>Catálogos</span>
-          </a>
-          <a class="nav-link" href="#" data-coming-soon data-permissions="audit.view">
-            <svg aria-hidden="true"><use href="#icon-audit"></use></svg>
-            <span>Auditoría</span>
-          </a>
-        </section>
-      </nav>
-
-      <div class="sidebar__footer">
-        <strong>Plataforma Corporativa EU Tools</strong>
-        <span>v0.0.1</span>
-      </div>
-    </aside>
+        <?php require dirname(__DIR__) . '/partials/sidebar.php'; ?>
 
     <div class="sidebar-backdrop" data-sidebar-backdrop hidden></div>
 
     <div class="app-workspace">
-      <header class="topbar">
-        <div class="topbar__start">
-          <button class="icon-button topbar__menu-button" type="button" data-sidebar-toggle aria-controls="app-sidebar" aria-expanded="false" aria-label="Abrir menú">
-            <svg aria-hidden="true"><use href="#icon-menu"></use></svg>
-          </button>
-          <span class="topbar__title">Plataforma de Mantenimiento</span>
-        </div>
-
-        <div class="topbar__end">
-          <div class="dropdown" data-notifications-dropdown>
-            <button class="icon-button" type="button" data-notifications-trigger aria-expanded="false" aria-label="Notificaciones">
-              <svg aria-hidden="true"><use href="#icon-bell"></use></svg>
-              <span class="notification-count" data-notification-count hidden>0</span>
-            </button>
-
-            <div class="dropdown__panel" data-notifications-panel hidden>
-              <div class="dropdown__header">
-                <strong>Notificaciones</strong>
-                <span data-notification-summary>Sin notificaciones pendientes</span>
-              </div>
-              <div class="notification-list" data-notification-list>
-                <div class="empty-state">
-                  <div>
-                    <span class="empty-state__icon">
-                      <svg aria-hidden="true"><use href="#icon-bell"></use></svg>
-                    </span>
-                    <h3>Sin notificaciones</h3>
-                    <p>Aquí aparecerán los avisos relacionados con tus tickets.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="dropdown" data-user-dropdown>
-            <button class="user-trigger" type="button" data-user-trigger aria-expanded="false">
-              <span class="user-avatar" data-user-initials>--</span>
-              <span class="user-trigger__text">
-                <strong data-user-name>Validando sesión…</strong>
-                <span data-user-email></span>
-              </span>
-              <svg width="16" height="16" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
-            </button>
-
-            <div class="dropdown__panel" data-user-panel hidden>
-              <div class="dropdown__header">
-                <strong data-menu-user-name>Usuario</strong>
-                <span data-menu-user-email></span>
-              </div>
-              <div class="dropdown__menu">
-                <button class="dropdown__item" type="button" data-coming-soon>
-                  <svg width="18" height="18" aria-hidden="true"><use href="#icon-user"></use></svg>
-                  Mi cuenta
-                </button>
-                <button class="dropdown__item" type="button" data-coming-soon>
-                  <svg width="18" height="18" aria-hidden="true"><use href="#icon-lock"></use></svg>
-                  Cambiar contraseña
-                </button>
-                <button class="dropdown__item dropdown__item--danger" type="button" data-logout>
-                  <svg width="18" height="18" aria-hidden="true"><use href="#icon-logout"></use></svg>
-                  Cerrar sesión
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+            <?php require dirname(__DIR__) . '/partials/topbar.php'; ?>
 
       <main class="main-content">
         <div class="main-content__inner">
@@ -141,10 +27,17 @@
               <p>Consulta el estado general de los reportes y las acciones que requieren tu atención.</p>
             </div>
 
-            <a class="button button--primary" href="./new-ticket.html" data-permissions="ticket.create">
-              <svg aria-hidden="true"><use href="#icon-plus"></use></svg>
-              Nuevo reporte
-            </a>
+            <?php if ($canCreateTicket): ?>
+              <a
+                class="button button--primary"
+                href="/maintenance/new-ticket.html"
+              >
+                <svg aria-hidden="true">
+                  <use href="#icon-plus"></use>
+                </svg>
+                Nuevo reporte
+              </a>
+            <?php endif; ?>
           </section>
 
           <p class="dashboard-error" data-dashboard-error hidden></p>
@@ -188,7 +81,12 @@
                   <h2>Acciones pendientes</h2>
                   <p>Reportes activos dentro de tu alcance.</p>
                 </div>
-                <a class="button button--text" href="./tickets.html" data-permissions="ticket.view.own,ticket.view.assigned,ticket.view.all">Ver todos</a>
+                <?php if ($canViewTickets): ?>
+                  <a
+                    class="button button--text"
+                    href="/maintenance/tickets.html"
+                  >Ver todos</a>
+                <?php endif; ?>
               </header>
 
               <div data-pending-content>
