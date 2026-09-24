@@ -17,6 +17,7 @@ use App\Services\QuotationService;
 use App\Services\SupervisorService;
 use App\Services\TicketDetailService;
 use App\Services\TicketService;
+use EUTools\Core\Security\PersistentSessionService;
 use EUTools\Shared\Mail\Mailer as SharedMailer;
 use EUTools\Shared\Mail\TemplateRegistry;
 use EUTools\Shared\Security\Csrf;
@@ -34,6 +35,13 @@ $sharedAutoload = dirname(__DIR__, 2) . '/shared/autoload.php';
 
 if (is_file($sharedAutoload)) {
     require_once $sharedAutoload;
+}
+
+$corePlatformAutoload = dirname(__DIR__, 2)
+    . '/core/platform/autoload.php';
+
+if (is_file($corePlatformAutoload)) {
+    require_once $corePlatformAutoload;
 }
 
 spl_autoload_register(static function (string $class): void {
@@ -86,12 +94,20 @@ Csrf::token();
 
 $pdo = Database::connection();
 
+$persistentSessionService = new PersistentSessionService(
+    $pdo,
+    Env::int('SESSION_LIFETIME_MINUTES', 30)
+);
+
 $auditService = new AuditService($pdo);
 $mailerService = new MailerService($pdo);
 $mailTemplateRegistry = new TemplateRegistry();
 
 $maintenanceContextService =
-    new MaintenanceContextService($pdo);
+    new MaintenanceContextService(
+        $pdo,
+        $persistentSessionService
+    );
 
 $sharedMailer = new SharedMailer(
     $pdo,

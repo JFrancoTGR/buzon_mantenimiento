@@ -1,40 +1,67 @@
-# Fundación de autenticación — Plataforma de Mantenimiento
+# Plataforma de Mantenimiento â€” EU Tools
 
-Paquete compatible con PHP 8.1+ y MariaDB. Implementa:
+MÃ³dulo de negocio de mantenimiento dentro de **EU Tools**.
 
-- Conexión PDO centralizada.
-- Configuración mediante `.env` fuera del directorio público.
-- Alta segura del primer administrador desde CLI.
-- Login contra la tabla `users`.
-- Hash y verificación mediante `password_hash()` y `password_verify()`.
-- Bloqueo temporal por intentos fallidos.
-- Sesiones registradas en `user_sessions`.
-- Cookies `HttpOnly`, `Secure` y `SameSite`.
-- Protección CSRF.
-- Logout con revocación de sesión.
-- Cambio obligatorio de contraseña inicial.
-- Consulta de roles y permisos efectivos.
-- Auditoría de accesos y cambios de contraseña.
-- Páginas mínimas para probar el flujo completo.
+## Responsabilidades
 
-## 1. Requisitos
+Maintenance administra exclusivamente lÃ³gica del dominio de mantenimiento:
 
-- PHP 8.1 o superior.
-- Extensiones `pdo_mysql`, `json` y `openssl`.
-- HTTPS en producción.
-- Tablas y semillas previamente creadas.
+- tickets y evidencias;
+- ubicaciones y supervisores;
+- transiciones de estado;
+- cotizaciones;
+- solicitudes y decisiones de autorizaciÃ³n;
+- notificaciones operativas;
+- permisos aplicados a acciones del dominio.
 
-## 2. Estructura de publicación
+La identidad pertenece a **Core**. Maintenance no crea, autentica, recupera, modifica ni administra cuentas de usuario.
 
-La raíz pública del dominio debe apuntar a:
+## Identidad y sesiÃ³n
 
-```text
-mantenimiento_auth_foundation/public
+Core es responsable de:
+
+- login y logout;
+- usuarios y cuentas;
+- sesiones persistentes;
+- recuperaciÃ³n y cambio de contraseÃ±a;
+- registro y verificaciÃ³n;
+- invitaciones;
+- acceso global a aplicaciones.
+
+Maintenance comparte la sesiÃ³n de EU Tools mediante:
+
+```dotenv
+SESSION_NAME=EUTOOLSSESSID
+SESSION_COOKIE_PATH=/
+SESSION_SECURE_COOKIE=true
+SESSION_SAME_SITE=Lax
 ```
 
-Las carpetas `app`, `bootstrap`, `scripts`, `sql`, `storage` y el archivo `.env` no deben quedar accesibles desde la web.
+Estos valores deben permanecer compatibles con Core.
 
-## 3. Configuración
+El frontend de Maintenance consume los endpoints centrales:
+
+```text
+GET  /api/auth/csrf
+GET  /api/auth/me
+POST /api/auth/logout
+```
+
+No existen endpoints locales de identidad en Maintenance.
+
+## Persistencia
+
+Maintenance y Core utilizan la misma base fÃ­sica:
+
+```dotenv
+DB_NAME=u170017077_tools
+```
+
+Maintenance consume identificadores de usuario y autorizaciÃ³n de plataforma, pero no es propietario del ciclo de vida de identidad.
+
+La validaciÃ³n y renovaciÃ³n de `user_sessions` pertenece a Core. El contexto de Maintenance consume una sesiÃ³n Core ya validada y aplica acceso, rol y permisos de la aplicaciÃ³n `maintenance`.
+
+## ConfiguraciÃ³n
 
 Copiar:
 
@@ -42,113 +69,44 @@ Copiar:
 cp .env.example .env
 ```
 
-Editar `.env` con las credenciales reales de MariaDB.
+El archivo `.env` real no debe versionarse.
 
-En desarrollo local sin HTTPS puede utilizarse temporalmente:
-
-```dotenv
-SESSION_SECURE_COOKIE=false
-APP_ENV=local
-APP_DEBUG=true
-```
-
-En producción debe mantenerse:
+Variables operativas principales:
 
 ```dotenv
-SESSION_SECURE_COOKIE=true
-APP_DEBUG=false
+APP_URL=https://tools.estrategiaurbana.info/maintenance
+DB_NAME=u170017077_tools
+SESSION_NAME=EUTOOLSSESSID
+SESSION_COOKIE_PATH=/
 ```
 
-## 4. Crear el primer administrador
+Las credenciales de base de datos y SMTP deben configurarse Ãºnicamente en el entorno real.
 
-Desde la raíz del proyecto:
-
-```bash
-php scripts/create_initial_admin.php
-```
-
-El script solicitará nombre, apellidos, correo y contraseña temporal. No imprime ni almacena la contraseña en texto plano.
-
-La contraseña debe:
-
-- Tener al menos 12 caracteres.
-- Combinar por lo menos tres categorías entre minúsculas, mayúsculas, números y símbolos.
-
-La cuenta se crea activa, con rol `administrator` y con `must_change_password = 1`.
-
-## 5. Validar el administrador
-
-```bash
-php scripts/verify_initial_admin.php administrador@dominio.com
-```
-
-La salida esperada debe indicar:
+## Estructura
 
 ```text
-VALIDACIÓN CORRECTA
+maintenance/
+â”œâ”€â”€ app/          # Servicios y reglas de negocio
+â”œâ”€â”€ bootstrap/    # ComposiciÃ³n del mÃ³dulo
+â”œâ”€â”€ public/       # UI y API operativa
+â”œâ”€â”€ scripts/      # Utilidades/migraciones histÃ³ricas
+â”œâ”€â”€ sql/          # SQL histÃ³rico y de soporte
+â””â”€â”€ storage/      # Logs/uploads no pÃºblicos
 ```
 
-También puede utilizarse `sql/08_validate_auth_setup.sql` desde phpMyAdmin después de reemplazar el correo de ejemplo.
+Las capas privadas no deben exponerse desde web.
 
-## 6. Probar el login
+## Frontera de autorizaciÃ³n
 
-Abrir:
+Cada endpoint operativo debe obtener al usuario mediante `maintenance_context` y validar los permisos requeridos antes de ejecutar cambios de negocio.
 
-```text
-https://tu-dominio/login.html
-```
+El frontend utiliza `/api/auth/me` de Core para obtener la identidad y adapta la entrada de `applications` correspondiente a `maintenance` al formato de permisos que necesita la interfaz.
 
-Flujo esperado:
+## Seguridad
 
-1. Login con contraseña temporal.
-2. Redirección obligatoria a `change-password.html`.
-3. Cambio de contraseña.
-4. Redirección a `dashboard.html`.
-5. Visualización de roles y permisos efectivos.
-6. Logout y revocación de la sesión en MariaDB.
-
-## 7. Endpoints incluidos
-
-```text
-GET  /api/auth/csrf.php
-POST /api/auth/login.php
-GET  /api/auth/me.php
-POST /api/auth/change-password.php
-POST /api/auth/logout.php
-```
-
-Todos los POST requieren el encabezado:
-
-```text
-X-CSRF-Token
-```
-
-## 8. Reglas importantes
-
-- No colocar `.env` dentro de `public`.
-- No versionar `.env`.
-- No desactivar `SESSION_SECURE_COOKIE` en producción.
-- No crear administradores mediante SQL con contraseñas en texto plano.
-- Los endpoints futuros deben llamar a `currentUser()` y después validar permisos con `AuthorizationService`.
-- Mientras `must_change_password` sea verdadero, el resto de módulos debe bloquearse mediante `AuthorizationService::requirePasswordChanged()`.
-
-## 9. Integración en un endpoint futuro
-
-```php
-<?php
-
-use App\Core\Http;
-use App\Services\AuthorizationService;
-
-$services = require dirname(__DIR__, 3) . '/bootstrap/app.php';
-$user = $services['auth']->currentUser();
-
-AuthorizationService::requirePasswordChanged($user);
-AuthorizationService::requirePermission($user, 'ticket.view.all');
-
-Http::json(['ok' => true]);
-```
-
-## 10. Limpieza futura de sesiones
-
-Las sesiones expiradas permanecen como trazabilidad. Más adelante puede añadirse una tarea periódica para eliminar o archivar sesiones antiguas, sin que sea requisito para validar este bloque.
+- HTTPS obligatorio en producciÃ³n.
+- Cookie compartida `EUTOOLSSESSID`, `Secure`, `HttpOnly`, `SameSite=Lax`, `Path=/`.
+- Los POST operativos requieren CSRF.
+- El token CSRF se obtiene desde `/api/auth/csrf`.
+- Un usuario sin acceso a `maintenance` debe recibir `application_access_denied`.
+- El logout se realiza exclusivamente a travÃ©s de Core.

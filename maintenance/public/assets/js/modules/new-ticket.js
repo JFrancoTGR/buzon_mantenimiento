@@ -4,6 +4,7 @@ import {
   redirectToCorePasswordChange,
 } from '../core/authBoundary.js';
 import { applyPermissionVisibility, hasPermission } from '../core/permissions.js';
+import { getMaintenanceUser } from '../core/session.js';
 import { setupSidebar } from '../components/sidebar.js';
 import { setupUserMenu } from '../components/userMenu.js';
 import { setupNotificationsMenu } from '../components/notificationsMenu.js';
@@ -35,8 +36,7 @@ const state = {
 };
 
 try {
-  const sessionPayload = await apiRequest('./api/auth/me.php');
-  state.user = sessionPayload.data.user;
+  state.user = await getMaintenanceUser();
 
   if (state.user.must_change_password) {
     redirectToCorePasswordChange();

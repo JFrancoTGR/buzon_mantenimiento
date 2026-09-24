@@ -4,12 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Config\Env;
 use App\Exceptions\HttpException;
-use EUTools\Shared\Security\SessionRuntime;
-use DateInterval;
-use DateTimeImmutable;
-use DateTimeZone;
+use EUTools\Core\Security\PersistentSessionService;
+use EUTools\Core\Security\SessionException;
 use PDO;
 
 final class MaintenanceContextService
@@ -17,84 +14,29 @@ final class MaintenanceContextService
     private const APPLICATION_CODE = 'maintenance';
 
     public function __construct(
-        private readonly PDO $pdo
+        private readonly PDO $pdo,
+        private readonly PersistentSessionService $persistentSessions
     ) {
     }
 
     /** @return array<string, mixed> */
     public function currentUser(): array
     {
-        $auth = SessionRuntime::authData();
-
-        if ($auth === null) {
+        try {
+            $identity = $this->persistentSessions
+                ->requireCurrentIdentity();
+        } catch (SessionException $exception) {
             throw new HttpException(
-                401,
-                'authentication_required',
-                'Debes iniciar sesión.'
+                $exception->status,
+                $exception->errorCode,
+                $exception->getMessage()
             );
         }
 
-        $statement = $this->pdo->prepare(
-            'SELECT
-                u.id,
-                u.first_name,
-                u.last_name,
-                u.email,
-                u.status,
-                u.must_change_password,
-                u.last_login_at,
-                us.id AS database_session_id,
-                us.session_hash,
-                us.expires_at,
-                us.revoked_at
-             FROM user_sessions us
-             INNER JOIN users u
-                ON u.id = us.user_id
-             WHERE us.id = :session_id
-               AND us.user_id = :user_id
-             LIMIT 1'
-        );
-
-        $statement->execute([
-            'session_id' => $auth['database_session_id'],
-            'user_id' => $auth['user_id'],
-        ]);
-
-        $row = $statement->fetch();
-
-        $now = new DateTimeImmutable(
-            'now',
-            new DateTimeZone('UTC')
-        );
-
-        $isInvalid =
-            !is_array($row)
-            || $row['revoked_at'] !== null
-            || (string) $row['status'] !== 'active'
-            || !hash_equals(
-                (string) ($row['session_hash'] ?? ''),
-                SessionRuntime::sessionHash()
-            )
-            || new DateTimeImmutable(
-                (string) $row['expires_at'],
-                new DateTimeZone('UTC')
-            ) <= $now;
-
-        if ($isInvalid) {
-            throw new HttpException(
-                401,
-                'session_expired',
-                'La sesión expiró o fue revocada.'
-            );
-        }
-
-        $this->touchSession(
-            (int) $auth['database_session_id'],
-            $now
-        );
+        $userId = (int) $identity['id'];
 
         $access = $this->loadMaintenanceAccess(
-            (int) $auth['user_id']
+            $userId
         );
 
         if ($access === null) {
@@ -106,60 +48,25 @@ final class MaintenanceContextService
         }
 
         $permissions = $this->loadPermissions(
-            (int) $auth['user_id'],
+            $userId,
             (int) $access['application_id'],
             (int) $access['role_id']
         );
 
         return [
-            'id' => (int) $row['id'],
-            'first_name' => (string) $row['first_name'],
-            'last_name' => (string) $row['last_name'],
-            'full_name' => trim(
-                (string) $row['first_name']
-                . ' '
-                . (string) $row['last_name']
-            ),
-            'email' => (string) $row['email'],
+            'id' => $userId,
+            'first_name' => (string) $identity['first_name'],
+            'last_name' => (string) $identity['last_name'],
+            'full_name' => (string) $identity['full_name'],
+            'email' => (string) $identity['email'],
             'must_change_password' =>
-                (bool) $row['must_change_password'],
-            'last_login_at' => $row['last_login_at'],
+                (bool) $identity['must_change_password'],
+            'last_login_at' => $identity['last_login_at'],
             'roles' => [
                 (string) $access['role_code'],
             ],
             'permissions' => $permissions,
         ];
-    }
-
-    private function touchSession(
-        int $databaseSessionId,
-        DateTimeImmutable $now
-    ): void {
-        $newExpiry = $now
-            ->add(
-                new DateInterval(
-                    'PT'
-                    . Env::int(
-                        'SESSION_LIFETIME_MINUTES',
-                        30
-                    )
-                    . 'M'
-                )
-            )
-            ->format('Y-m-d H:i:s');
-
-        $statement = $this->pdo->prepare(
-            'UPDATE user_sessions
-             SET last_activity_at = UTC_TIMESTAMP(),
-                 expires_at = :expires_at
-             WHERE id = :id
-               AND revoked_at IS NULL'
-        );
-
-        $statement->execute([
-            'expires_at' => $newExpiry,
-            'id' => $databaseSessionId,
-        ]);
     }
 
     /**

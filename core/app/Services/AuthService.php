@@ -7,6 +7,8 @@ namespace App\Services;
 use App\Config\Env;
 use App\Core\Http;
 use App\Exceptions\HttpException;
+use EUTools\Core\Security\PersistentSessionService;
+use EUTools\Core\Security\SessionException;
 use DateInterval;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -24,7 +26,8 @@ final class AuthService
 
     public function __construct(
         private readonly PDO $pdo,
-        private readonly AuditService $audit
+        private readonly AuditService $audit,
+        private readonly PersistentSessionService $persistentSessions
     ) {
     }
 
@@ -228,107 +231,22 @@ final class AuthService
     /** @return array<string, mixed> */
     public function currentUser(): array
     {
-        $auth = SessionRuntime::authData();
-
-        if ($auth === null) {
+        try {
+            $user = $this->persistentSessions
+                ->requireCurrentIdentity();
+        } catch (SessionException $exception) {
             throw new HttpException(
-                401,
-                'authentication_required',
-                'Debes iniciar sesión.'
+                $exception->status,
+                $exception->errorCode,
+                $exception->getMessage()
             );
         }
 
-        $statement = $this->pdo->prepare(
-            'SELECT
-                u.id,
-                u.first_name,
-                u.last_name,
-                u.email,
-                u.status,
-                u.must_change_password,
-                u.last_login_at,
-                us.id AS database_session_id,
-                us.session_hash,
-                us.expires_at,
-                us.revoked_at
-             FROM user_sessions us
-             INNER JOIN users u
-                ON u.id = us.user_id
-             WHERE us.id = :session_id
-               AND us.user_id = :user_id
-             LIMIT 1'
+        $user['applications'] = $this->loadApplications(
+            (int) $user['id']
         );
 
-        $statement->execute([
-            'session_id' => $auth['database_session_id'],
-            'user_id'    => $auth['user_id'],
-        ]);
-
-        $row = $statement->fetch();
-
-        $now = new DateTimeImmutable(
-            'now',
-            new DateTimeZone('UTC')
-        );
-
-        $isInvalid =
-        ! is_array($row)
-        || $row['revoked_at'] !== null
-        || (string) $row['status'] !== 'active'
-        || ! hash_equals(
-            (string) ($row['session_hash'] ?? ''),
-            SessionRuntime::sessionHash()
-        )
-        || new DateTimeImmutable(
-            (string) $row['expires_at'],
-            new DateTimeZone('UTC')
-        ) <= $now;
-
-        if ($isInvalid) {
-            $this->logout(false);
-
-            throw new HttpException(
-                401,
-                'session_expired',
-                'La sesión expiró o fue revocada.'
-            );
-        }
-
-        $newExpiry = $now
-            ->add(
-                new DateInterval(
-                    'PT' . Env::int('SESSION_LIFETIME_MINUTES', 30) . 'M'
-                )
-            )
-            ->format('Y-m-d H:i:s');
-
-        $touch = $this->pdo->prepare(
-            'UPDATE user_sessions
-             SET last_activity_at = UTC_TIMESTAMP(),
-                 expires_at = :expires_at
-             WHERE id = :id'
-        );
-
-        $touch->execute([
-            'expires_at' => $newExpiry,
-            'id'         => $auth['database_session_id'],
-        ]);
-
-        $applications = $this->loadApplications($auth['user_id']);
-
-        return [
-            'id'                   => (int) $row['id'],
-            'first_name'           => (string) $row['first_name'],
-            'last_name'            => (string) $row['last_name'],
-            'full_name'            => trim(
-                (string) $row['first_name'] . ' ' . (string) $row['last_name']
-            ),
-            'email'                => (string) $row['email'],
-            'status'               => (string) $row['status'],
-            'must_change_password' => (bool) $row['must_change_password'],
-            'last_login_at'        => $row['last_login_at'],
-            'applications'         => $applications,
-        ];
+        return $user;
     }
 
     public function logout(bool $recordAudit = true): void

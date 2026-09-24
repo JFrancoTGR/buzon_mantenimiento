@@ -15,6 +15,7 @@ use App\Services\RegistrationService;
 use App\Services\UserAdminService;
 use App\Services\UserInvitationService;
 use App\Services\WebAuthService;
+use EUTools\Core\Security\PersistentSessionService;
 use EUTools\Shared\Mail\Mailer as SharedMailer;
 use EUTools\Shared\Mail\TemplateRegistry;
 use EUTools\Shared\Security\Csrf;
@@ -33,6 +34,12 @@ $sharedAutoload = dirname(__DIR__, 2) . '/shared/autoload.php';
 
 if (is_file($sharedAutoload)) {
     require_once $sharedAutoload;
+}
+
+$corePlatformAutoload = ROOT_PATH . '/platform/autoload.php';
+
+if (is_file($corePlatformAutoload)) {
+    require_once $corePlatformAutoload;
 }
 
 spl_autoload_register(static function (string $class): void {
@@ -91,11 +98,17 @@ Csrf::token();
 
 $pdo = Database::connection();
 
+$persistentSessionService = new PersistentSessionService(
+    $pdo,
+    Env::int('SESSION_LIFETIME_MINUTES', 30)
+);
+
 $auditService = new AuditService($pdo);
 
 $authService = new AuthService(
     $pdo,
-    $auditService
+    $auditService,
+    $persistentSessionService
 );
 
 $webAuthService = new WebAuthService(

@@ -3,7 +3,7 @@ let csrfToken = null;
 export async function getCsrfToken({ force = false } = {}) {
   if (csrfToken && !force) return csrfToken;
 
-  const response = await fetch('./api/auth/csrf.php', {
+  const response = await fetch('/api/auth/csrf', {
     method: 'GET',
     credentials: 'same-origin',
     headers: { Accept: 'application/json' },
