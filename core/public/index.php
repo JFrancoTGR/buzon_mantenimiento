@@ -305,8 +305,11 @@
       <path d="M4 19h16v2H4v-2Zm2-2V9h3v8H6Zm5 0V4h3v13h-3Zm5 0v-6h3v6h-3Z" fill="currentColor" />
     </symbol>
 
-    <symbol id="icon-analytics" viewBox="0 0 24 24">
-      <path d="M4 20V4h2v14h14v2H4Zm4-4V9h3v7H8Zm5 0V5h3v11h-3Zm5 0v-4h3v4h-3Z" fill="currentColor" />
+    <symbol id="icon-referrals" viewBox="0 0 24 24">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+      <circle cx="9" cy="7" r="4"></circle>
+      <path d="M19 8v6"></path>
+      <path d="M22 11h-6"></path>
     </symbol>
 
   </svg>

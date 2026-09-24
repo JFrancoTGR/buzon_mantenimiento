@@ -84,17 +84,17 @@ INSERT INTO `applications` (
         0
     ),
     (
-        'executive_analytics',
-        'Analítica ejecutiva',
-        'Indicadores consolidados y visualización ejecutiva de la operación de Estrategia Urbana.',
-        '/executive-analytics',
-        1,
-        'coming_soon',
-        'Dirección',
-        'analytics',
-        40,
-        0
-    )
+    'referrals',
+    'Programa de referidos',
+    'Gestión y seguimiento del programa de referidos de Estrategia Urbana.',
+    '/referrals',
+    1,
+    'coming_soon',
+    'Comercial',
+    'referrals',
+    40,
+    0
+)
 ON DUPLICATE KEY UPDATE
     `name` = VALUES(`name`),
     `description` = VALUES(`description`),

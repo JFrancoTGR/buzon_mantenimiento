@@ -193,7 +193,7 @@ function resolveIcon(icon) {
     maintenance: 'icon-maintenance',
     events: 'icon-events',
     intelligence: 'icon-intelligence',
-    analytics: 'icon-analytics',
+    referrals: 'icon-referrals',
   };
 
   return icons[icon] || 'icon-tools';
