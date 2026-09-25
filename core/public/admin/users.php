@@ -98,8 +98,9 @@
     })();
   </script>
   <meta charset="utf-8">
+  <script src="/assets/js/components/theme-preload.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light">
+  <meta name="color-scheme" content="light dark">
 
   <title>Usuarios | EU Tools</title>
 

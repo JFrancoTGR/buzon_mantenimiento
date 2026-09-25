@@ -1,0 +1,204 @@
+/* =========================
+   EU TOOLS THEME v0.1
+   ========================= */
+
+.theme-preference {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.theme-preference__label {
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  font-weight: 720;
+}
+
+.theme-control {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.theme-icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  transition:
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.theme-icon--sun {
+  color: rgb(247 239 190);
+}
+
+.theme-icon--moon {
+  color: rgb(236 209 255);
+}
+
+html[data-theme='light'] .theme-icon--sun {
+  color: rgb(247 213 5);
+  transform: scale(1.08);
+}
+
+html[data-theme='dark'] .theme-icon--moon {
+  color: rgb(154 13 252);
+  transform: scale(1.08);
+}
+
+.theme-switch {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface-strong);
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease;
+}
+
+.theme-switch:hover {
+  border-color: var(--primary);
+}
+
+.theme-switch:focus-visible {
+  outline: 2px solid var(--primary-dark);
+  outline-offset: 2px;
+}
+
+.theme-switch__thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 22%);
+  transition:
+    transform 160ms ease,
+    background 160ms ease;
+}
+
+html[data-theme='dark'] .theme-switch__thumb {
+  background: var(--text-primary);
+  transform: translateX(18px);
+}
+
+html[data-theme='dark'] {
+  color-scheme: dark;
+
+  --primary: rgb(220 58 71);
+  --primary-dark: rgb(245 112 122);
+  --primary-soft: rgb(57 25 30);
+
+  --background: rgb(15 18 22);
+  --surface: rgb(23 27 32);
+  --surface-muted: rgb(31 36 42);
+  --surface-strong: rgb(40 46 53);
+
+  --text-primary: rgb(239 243 247);
+  --text-secondary: rgb(183 193 203);
+  --text-muted: rgb(145 157 168);
+  --text-on-primary: rgb(255 255 255);
+
+  --border: rgb(79 89 99);
+  --border-soft: rgb(50 58 66);
+  --border-strong: rgb(104 115 126);
+
+  --success: rgb(109 210 135);
+  --success-soft: rgb(24 54 34);
+
+  --warning: rgb(235 185 82);
+  --warning-soft: rgb(57 44 20);
+
+  --error: rgb(242 119 119);
+  --error-soft: rgb(61 28 31);
+
+  --info: rgb(125 187 235);
+  --info-soft: rgb(24 44 61);
+
+  --shadow-sm:
+    0 4px 16px rgb(0 0 0 / 24%);
+
+  --shadow-md:
+    0 14px 40px rgb(0 0 0 / 36%);
+}
+
+html[data-theme='dark'] .topbar {
+  background: rgb(23 27 32 / 96%);
+}
+
+html[data-theme='dark'] .sidebar-backdrop {
+  background: rgb(0 0 0 / 56%);
+}
+
+html[data-theme='dark'] .status-badge[data-status='new'],
+html[data-theme='dark'] .status-badge[data-status='closed'],
+html[data-theme='dark'] .status-badge[data-status='cancelled'],
+html[data-theme='dark'] .priority-badge[data-priority='low'] {
+  border-color: var(--border-strong);
+  background: var(--surface-strong);
+  color: var(--text-secondary);
+}
+
+html[data-theme='dark'] .status-badge[data-status='under_review'],
+html[data-theme='dark'] .status-badge[data-status='in_progress'],
+html[data-theme='dark'] .priority-badge[data-priority='medium'] {
+  border-color: var(--info);
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+html[data-theme='dark'] .status-badge[data-status='quotation_pending'],
+html[data-theme='dark'] .status-badge[data-status='authorization_pending'],
+html[data-theme='dark'] .status-badge[data-status='changes_requested'],
+html[data-theme='dark'] .priority-badge[data-priority='high'] {
+  border-color: var(--warning);
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+html[data-theme='dark'] .status-badge[data-status='authorized'],
+html[data-theme='dark'] .status-badge[data-status='completed'] {
+  border-color: var(--success);
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+html[data-theme='dark'] .status-badge[data-status='rejected'],
+html[data-theme='dark'] .priority-badge[data-priority='urgent'] {
+  border-color: var(--error);
+  background: var(--error-soft);
+  color: var(--error);
+}
+html[data-theme='dark'] .tool-card[data-state='integration']
+.tool-card__status,
+html[data-theme='dark'] .users-invitation__status[data-status='pending'] {
+  border-color: var(--info);
+}
+
+html[data-theme='dark'] .tool-card[data-state='available']
+.tool-card__status,
+html[data-theme='dark'] .users-status[data-status='active'],
+html[data-theme='dark'] .users-invitation__status[data-status='used'] {
+  border-color: var(--success);
+}
+
+html[data-theme='dark'] .users-status[data-status='invited'],
+html[data-theme='dark'] .users-status[data-status='pending'] {
+  border-color: var(--warning);
+}
+
+html[data-theme='dark'] .users-modal__backdrop {
+  background: rgb(0 0 0 / 62%);
+}

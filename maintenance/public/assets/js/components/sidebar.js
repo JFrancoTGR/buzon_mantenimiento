@@ -1,3 +1,5 @@
+import { setupThemeControl } from './theme.js';
+
 const SIDEBAR_STORAGE_KEY = 'euTools.sidebarCollapsed';
 const MOBILE_MEDIA = '(max-width: 1024px)';
 const DESKTOP_MEDIA = '(min-width: 1025px)';
@@ -169,7 +171,7 @@ function prepareNavigationLabels(sidebar) {
 
 function setupPlatformActions() {
   setupAppsHomeAction();
-  setupThemePlaceholder();
+  setupThemeControl();
 }
 
 function setupAppsHomeAction() {
@@ -230,52 +232,4 @@ function setupAppsHomeAction() {
     'beforebegin',
     link,
   );
-}
-
-function setupThemePlaceholder() {
-  const userPanel = document.querySelector(
-    '[data-user-panel]',
-  );
-
-  if (
-    !userPanel
-    || userPanel.querySelector('[data-theme-toggle]')
-  ) {
-    return;
-  }
-
-  const preference = document.createElement('div');
-  preference.className = 'theme-preference';
-
-  preference.innerHTML = `
-    <button
-      class="theme-preference__button"
-      type="button"
-      data-theme-toggle
-      disabled
-      aria-disabled="true"
-      title="Cambio de tema próximamente"
-    >
-      <span class="theme-preference__copy">
-        <strong>Tema oscuro</strong>
-        <small>Próximamente</small>
-      </span>
-
-      <span
-        class="theme-switch"
-        aria-hidden="true"
-      ></span>
-    </button>
-  `;
-
-  const header = userPanel.querySelector('.dropdown__header');
-
-  if (header) {
-    header.insertAdjacentElement(
-      'afterend',
-      preference,
-    );
-  } else {
-    userPanel.prepend(preference);
-  }
 }

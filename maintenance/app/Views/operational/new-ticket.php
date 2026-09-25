@@ -2,9 +2,10 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
+  <script src="./assets/js/components/theme-preload.js"></script>
   <script src="./assets/js/components/sidebar-preload.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light">
+  <meta name="color-scheme" content="light dark">
   <title>Nuevo reporte | Plataforma de Mantenimiento</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/sweetalert2/11.26.25/sweetalert2.min.css">
   <link rel="stylesheet" href="./assets/css/app.css">
