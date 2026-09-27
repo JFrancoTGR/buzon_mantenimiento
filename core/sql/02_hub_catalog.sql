@@ -31,16 +31,17 @@ UPDATE `applications`
 SET
     `hub_status` = 'available',
     `hub_category` = 'Sistema',
-    `icon_key` = 'core'
+    `icon_key` = 'core',
+    `sort_order` = 10
 WHERE `code` = 'core';
 
 UPDATE `applications`
 SET
-    `hub_status` = 'integration',
+    `hub_status` = 'available',
     `hub_category` = 'Gestión operativa',
     `icon_key` = 'maintenance',
     `show_in_hub` = 1,
-    `sort_order` = 10
+    `sort_order` = 40
 WHERE `code` = 'maintenance';
 
 -- =========================================================
@@ -80,7 +81,7 @@ INSERT INTO `applications` (
         'coming_soon',
         'Comercial',
         'intelligence',
-        30,
+        50,
         0
     ),
     (
@@ -92,7 +93,7 @@ INSERT INTO `applications` (
     'coming_soon',
     'Comercial',
     'referrals',
-    40,
+    30,
     0
 )
 ON DUPLICATE KEY UPDATE
