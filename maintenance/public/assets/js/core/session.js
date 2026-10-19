@@ -7,7 +7,9 @@ export async function getMaintenanceUser() {
   const user = payload?.data?.user;
 
   if (!user || typeof user !== 'object') {
-    const error = new Error('No fue posible validar tu sesiÃ³n.');
+    const error = new Error(
+      'No fue posible validar tu sesión.'
+    );
     error.code = 'authentication_required';
     error.status = 401;
     throw error;
@@ -30,16 +32,62 @@ export async function getMaintenanceUser() {
     throw error;
   }
 
-  const roleCode =
-    typeof application.role?.code === 'string'
-      ? application.role.code
+  const grants = Array.isArray(application.grants)
+    ? application.grants
+      .filter((grant) => grant && typeof grant === 'object')
+      .map((grant) => ({
+        ...grant,
+        role: grant.role && typeof grant.role === 'object'
+          ? { ...grant.role }
+          : null,
+        location: grant.location && typeof grant.location === 'object'
+          ? { ...grant.location }
+          : null,
+        permissions: Array.isArray(grant.permissions)
+          ? [...grant.permissions]
+          : [],
+        is_global: Boolean(grant.is_global),
+      }))
+    : [];
+
+  const roleCodes = new Set();
+
+  grants.forEach((grant) => {
+    const code = typeof grant.role?.code === 'string'
+      ? grant.role.code.trim()
       : '';
+
+    if (code) roleCodes.add(code);
+  });
+
+  /*
+   * Compatibility for a single-role application payload. Maintenance
+   * normally reaches this branch only if grants are absent, but keeping
+   * it makes the adapter safe for fixtures and transitional responses.
+   */
+  const compatibilityRole =
+    typeof application.role?.code === 'string'
+      ? application.role.code.trim()
+      : '';
+
+  if (compatibilityRole) {
+    roleCodes.add(compatibilityRole);
+  }
 
   return {
     ...user,
-    roles: roleCode ? [roleCode] : [],
+    access_model:
+      typeof application.access_model === 'string'
+        ? application.access_model
+        : 'single_role',
+    application_role:
+      application.role && typeof application.role === 'object'
+        ? { ...application.role }
+        : null,
+    roles: [...roleCodes],
     permissions: Array.isArray(application.permissions)
       ? [...application.permissions]
       : [],
+    grants,
   };
 }

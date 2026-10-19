@@ -13,7 +13,7 @@ Csrf::validate($_POST);
 
 $user = $services['maintenance_context']->currentUser();
 AuthorizationService::requirePasswordChanged($user);
-AuthorizationService::requirePermission($user, 'ticket.create');
+AuthorizationService::requireAnyPermission($user, 'ticket.create');
 
 $result = $services['tickets']->create($user, $_POST, $_FILES);
 

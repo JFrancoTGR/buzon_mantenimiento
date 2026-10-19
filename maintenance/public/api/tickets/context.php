@@ -10,7 +10,7 @@ $services = require dirname(__DIR__, 3) . '/bootstrap/app.php';
 Http::requireMethod('GET');
 $user = $services['maintenance_context']->currentUser();
 AuthorizationService::requirePasswordChanged($user);
-AuthorizationService::requirePermission($user, 'ticket.create');
+AuthorizationService::requireAnyPermission($user, 'ticket.create');
 
 $locationCode = isset($_GET['location']) ? trim((string) $_GET['location']) : null;
 

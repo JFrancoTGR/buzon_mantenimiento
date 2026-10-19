@@ -27,55 +27,81 @@ final class TicketService
      * @param array<string, mixed> $user
      * @return array<string, mixed>
      */
-    public function context(array $user, ?string $locationCode): array
-    {
+    public function context(
+        array $user,
+        ?string $locationCode
+    ): array {
         $locationsStatement = $this->pdo->query(
             "SELECT
-                l.id,
-                l.code,
-                l.name,
-                l.default_supervisor_user_id,
-                CASE
-                    WHEN u.id IS NOT NULL
-                     AND u.status = 'active'
-                     AND EXISTS (
-                        SELECT 1
-                        FROM user_application_roles uar
-INNER JOIN applications a
-    ON a.id = uar.application_id
-   AND a.code = 'maintenance'
-   AND a.is_active = 1
-INNER JOIN application_roles r
-    ON r.id = uar.role_id
-   AND r.application_id = uar.application_id
-   AND r.is_active = 1
-WHERE uar.user_id = u.id
-  AND uar.revoked_at IS NULL
-  AND r.code = 'supervisor'
-                     ) THEN 1
-                    ELSE 0
-                END AS has_active_supervisor
-             FROM locations l
-             LEFT JOIN users u ON u.id = l.default_supervisor_user_id
-             WHERE l.is_active = 1
-             ORDER BY l.sort_order, l.name"
+            l.id,
+            l.code,
+            l.name,
+            l.default_supervisor_user_id,
+            CASE
+                WHEN u.id IS NOT NULL
+                 AND u.status = 'active'
+                 AND EXISTS (
+                    SELECT 1
+                    FROM maintenance_access_grants mag
+                    INNER JOIN applications a
+                       ON a.id = mag.application_id
+                      AND a.code = 'maintenance'
+                      AND a.is_active = 1
+                    INNER JOIN application_roles r
+                       ON r.id = mag.role_id
+                      AND r.application_id = mag.application_id
+                      AND r.is_active = 1
+                    INNER JOIN role_permissions rp
+                       ON rp.application_id = mag.application_id
+                      AND rp.role_id = mag.role_id
+                    INNER JOIN permissions p
+                       ON p.id = rp.permission_id
+                      AND p.application_id = mag.application_id
+                      AND p.code = 'access'
+                    WHERE mag.user_id = u.id
+                      AND mag.revoked_at IS NULL
+                      AND mag.location_id = l.id
+                      AND r.code = 'supervisor'
+                 )
+                THEN 1
+                ELSE 0
+            END AS has_active_supervisor
+         FROM locations l
+         LEFT JOIN users u
+            ON u.id = l.default_supervisor_user_id
+         WHERE l.is_active = 1
+         ORDER BY l.sort_order, l.name"
         );
 
-        $locations = array_map(
-            static fn(array $row): array=> [
-                'id'                    => (int) $row['id'],
+        $locations = [];
+
+        foreach ($locationsStatement->fetchAll() as $row) {
+            $locationId = (int) $row['id'];
+
+            if (
+                ! AuthorizationService::hasPermission(
+                    $user,
+                    'ticket.create',
+                    $locationId
+                )
+            ) {
+                continue;
+            }
+
+            $locations[] = [
+                'id'                    => $locationId,
                 'code'                  => (string) $row['code'],
                 'name'                  => (string) $row['name'],
-                'has_active_supervisor' => (bool) $row['has_active_supervisor'],
-            ],
-            $locationsStatement->fetchAll()
-        );
+                'has_active_supervisor' =>
+                (bool) $row['has_active_supervisor'],
+            ];
+        }
 
         $prioritiesStatement = $this->pdo->query(
             'SELECT id, code, name, weight, color_reference
-             FROM ticket_priorities
-             WHERE is_active = 1
-             ORDER BY weight, name'
+         FROM ticket_priorities
+         WHERE is_active = 1
+         ORDER BY weight, name'
         );
 
         $priorities = array_map(
@@ -84,7 +110,8 @@ WHERE uar.user_id = u.id
                 'code'            => (string) $row['code'],
                 'name'            => (string) $row['name'],
                 'weight'          => (int) $row['weight'],
-                'color_reference' => $row['color_reference'] !== null
+                'color_reference' =>
+                $row['color_reference'] !== null
                     ? (string) $row['color_reference']
                     : null,
             ],
@@ -92,7 +119,14 @@ WHERE uar.user_id = u.id
         );
 
         $selectedLocation = null;
-        if ($locationCode !== null && preg_match('/^[a-z0-9_]{1,50}$/', $locationCode) === 1) {
+
+        if (
+            $locationCode !== null
+            && preg_match(
+                '/^[a-z0-9_]{1,50}$/',
+                $locationCode
+            ) === 1
+        ) {
             foreach ($locations as $location) {
                 if ($location['code'] === $locationCode) {
                     $selectedLocation = $location;
@@ -101,9 +135,32 @@ WHERE uar.user_id = u.id
             }
         }
 
-        $defaultPriority = $this->setting('ticket.default_priority', 'medium');
-        $maxFiles        = max(1, min(20, (int) $this->setting('upload.evidence.max_files', '8')));
-        $maxSizeMb       = max(1, min(25, (int) $this->setting('upload.evidence.max_size_mb', '8')));
+        $defaultPriority = $this->setting(
+            'ticket.default_priority',
+            'medium'
+        );
+
+        $maxFiles = max(
+            1,
+            min(
+                20,
+                (int) $this->setting(
+                    'upload.evidence.max_files',
+                    '8'
+                )
+            )
+        );
+
+        $maxSizeMb = max(
+            1,
+            min(
+                25,
+                (int) $this->setting(
+                    'upload.evidence.max_size_mb',
+                    '8'
+                )
+            )
+        );
 
         return [
             'reporter'           => [
@@ -119,8 +176,15 @@ WHERE uar.user_id = u.id
             'upload'             => [
                 'max_files'          => $maxFiles,
                 'max_size_mb'        => $maxSizeMb,
-                'allowed_mime_types' => ['image/jpeg', 'image/png'],
-                'allowed_extensions' => ['jpg', 'jpeg', 'png'],
+                'allowed_mime_types' => [
+                    'image/jpeg',
+                    'image/png',
+                ],
+                'allowed_extensions' => [
+                    'jpg',
+                    'jpeg',
+                    'png',
+                ],
             ],
         ];
     }
@@ -158,8 +222,19 @@ WHERE uar.user_id = u.id
             throw new HttpException(422, 'invalid_priority', 'Selecciona una prioridad válida.');
         }
 
-        $location         = $this->findActiveLocationWithSupervisor($locationCode);
-        $priority         = $this->findActivePriority($priorityCode);
+        $location = $this->findActiveLocationWithSupervisor(
+            $locationCode
+        );
+
+        AuthorizationService::requirePermission(
+            $user,
+            'ticket.create',
+            (int) $location['id']
+        );
+
+        $priority = $this->findActivePriority(
+            $priorityCode
+        );
         $newStatusId      = $this->findStatusId('new');
         $validatedFiles   = $this->validateEvidenceFiles($files['evidence'] ?? null);
         $requestId        = Http::requestId();
@@ -431,50 +506,73 @@ WHERE uar.user_id = u.id
     }
 
     /** @return array<string, mixed> */
-    private function findActiveLocationWithSupervisor(string $code): array
-    {
+    private function findActiveLocationWithSupervisor(
+        string $code
+    ): array {
         $statement = $this->pdo->prepare(
             "SELECT
-                l.id,
-                l.code,
-                l.name,
-                l.default_supervisor_user_id,
-                u.id AS supervisor_id,
-                u.first_name AS supervisor_first_name,
-                u.last_name AS supervisor_last_name,
-                u.email AS supervisor_email,
-                u.status AS supervisor_status,
-                CASE
-                    WHEN EXISTS (
-                        SELECT 1
-                        FROM user_application_roles uar
-INNER JOIN applications a
-    ON a.id = uar.application_id
-   AND a.code = 'maintenance'
-   AND a.is_active = 1
-INNER JOIN application_roles r
-    ON r.id = uar.role_id
-   AND r.application_id = uar.application_id
-   AND r.is_active = 1
-WHERE uar.user_id = u.id
-  AND uar.revoked_at IS NULL
-  AND r.code = 'supervisor'
-                    ) THEN 1
-                    ELSE 0
-                END AS supervisor_has_role
-             FROM locations l
-             LEFT JOIN users u ON u.id = l.default_supervisor_user_id
-             WHERE l.code = :code AND l.is_active = 1
-             LIMIT 1"
+            l.id,
+            l.code,
+            l.name,
+            l.default_supervisor_user_id,
+            u.id AS supervisor_id,
+            u.first_name AS supervisor_first_name,
+            u.last_name AS supervisor_last_name,
+            u.email AS supervisor_email,
+            u.status AS supervisor_status,
+            CASE
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM maintenance_access_grants mag
+                    INNER JOIN applications a
+                       ON a.id = mag.application_id
+                      AND a.code = 'maintenance'
+                      AND a.is_active = 1
+                    INNER JOIN application_roles r
+                       ON r.id = mag.role_id
+                      AND r.application_id = mag.application_id
+                      AND r.is_active = 1
+                    INNER JOIN role_permissions rp
+                       ON rp.application_id =
+                          mag.application_id
+                      AND rp.role_id = mag.role_id
+                    INNER JOIN permissions p
+                       ON p.id = rp.permission_id
+                      AND p.application_id =
+                          mag.application_id
+                      AND p.code = 'access'
+                    WHERE mag.user_id = u.id
+                      AND mag.revoked_at IS NULL
+                      AND mag.location_id = l.id
+                      AND r.code = 'supervisor'
+                )
+                THEN 1
+                ELSE 0
+            END AS supervisor_has_role
+         FROM locations l
+         LEFT JOIN users u
+            ON u.id = l.default_supervisor_user_id
+         WHERE l.code = :code
+           AND l.is_active = 1
+         LIMIT 1"
         );
-        $statement->execute(['code' => $code]);
+
+        $statement->execute([
+            'code' => $code,
+        ]);
+
         $row = $statement->fetch();
 
         if (! is_array($row)) {
-            throw new HttpException(422, 'invalid_location', 'La ubicación seleccionada no está disponible.');
+            throw new HttpException(
+                422,
+                'invalid_location',
+                'La ubicación seleccionada no está disponible.'
+            );
         }
 
         $supervisor = null;
+
         if (
             $row['supervisor_id'] !== null
             && (string) $row['supervisor_status'] === 'active'
@@ -482,7 +580,11 @@ WHERE uar.user_id = u.id
         ) {
             $supervisor = [
                 'id'        => (int) $row['supervisor_id'],
-                'full_name' => trim((string) $row['supervisor_first_name'] . ' ' . (string) $row['supervisor_last_name']),
+                'full_name' => trim(
+                    (string) $row['supervisor_first_name']
+                    . ' '
+                    . (string) $row['supervisor_last_name']
+                ),
                 'email'     => (string) $row['supervisor_email'],
             ];
         }

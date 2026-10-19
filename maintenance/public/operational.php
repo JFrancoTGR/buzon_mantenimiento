@@ -68,7 +68,7 @@ function maintenanceHasAnyPermission(
 ): bool {
     foreach ($permissions as $permission) {
         if (
-            AuthorizationService::hasPermission(
+            AuthorizationService::hasAnyPermission(
                 $user,
                 $permission
             )
@@ -133,12 +133,13 @@ $canViewTickets =
         [
             'ticket.view.own',
             'ticket.view.assigned',
+            'ticket.view.location',
             'ticket.view.all',
         ]
     );
 
 $canCreateTicket =
-    AuthorizationService::hasPermission(
+    AuthorizationService::hasAnyPermission(
         $user,
         'ticket.create'
     );
