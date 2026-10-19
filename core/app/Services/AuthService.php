@@ -7,11 +7,11 @@ namespace App\Services;
 use App\Config\Env;
 use App\Core\Http;
 use App\Exceptions\HttpException;
-use EUTools\Core\Security\PersistentSessionService;
-use EUTools\Core\Security\SessionException;
 use DateInterval;
 use DateTimeImmutable;
 use DateTimeZone;
+use EUTools\Core\Security\PersistentSessionService;
+use EUTools\Core\Security\SessionException;
 use EUTools\Shared\Security\Csrf;
 use EUTools\Shared\Security\SessionRuntime;
 use PDO;
@@ -330,11 +330,11 @@ final class AuthService
     ): array {
         $statement = $this->pdo->prepare(
             'SELECT
-            id,
-            status
-         FROM users
-         WHERE id = :id
-         LIMIT 1'
+                id,
+                status
+             FROM users
+             WHERE id = :id
+             LIMIT 1'
         );
 
         $statement->execute([
@@ -367,18 +367,17 @@ final class AuthService
             if ($currentSession !== null) {
                 $revokeCurrent = $this->pdo->prepare(
                     'UPDATE user_sessions
-                 SET revoked_at = COALESCE(
-                     revoked_at,
-                     UTC_TIMESTAMP()
-                 )
-                 WHERE id = :session_id
-                   AND user_id = :user_id'
+                     SET revoked_at = COALESCE(
+                         revoked_at,
+                         UTC_TIMESTAMP()
+                     )
+                     WHERE id = :session_id
+                       AND user_id = :user_id'
                 );
 
                 $revokeCurrent->execute([
                     'session_id' =>
                     $currentSession['database_session_id'],
-
                     'user_id'    =>
                     $currentSession['user_id'],
                 ]);
@@ -386,18 +385,17 @@ final class AuthService
 
             $update = $this->pdo->prepare(
                 'UPDATE users
-             SET last_login_at = UTC_TIMESTAMP(),
-                 failed_login_attempts = 0,
-                 locked_until = NULL
-             WHERE id = :id'
+                 SET last_login_at = UTC_TIMESTAMP(),
+                     failed_login_attempts = 0,
+                     locked_until = NULL
+                 WHERE id = :id'
             );
 
             $update->execute([
                 'id' => $userId,
             ]);
 
-            $databaseSessionId =
-            $this->insertDatabaseSession(
+            $databaseSessionId = $this->insertDatabaseSession(
                 $userId,
                 $now
             );
@@ -477,12 +475,20 @@ final class AuthService
     /** @return array<int, array<string, mixed>> */
     private function loadApplications(int $userId): array
     {
+        $applications = [];
+
+        /*
+         * Standard applications continue using user_application_roles.
+         * Maintenance is excluded because its source of truth is now
+         * maintenance_access_grants.
+         */
         $accessStatement = $this->pdo->prepare(
-            'SELECT
+            "SELECT
                 a.id,
                 a.code,
                 a.name,
                 a.base_path,
+                a.sort_order,
                 r.code AS role_code,
                 r.name AS role_name
              FROM user_application_roles uar
@@ -493,96 +499,316 @@ final class AuthService
                 ON r.id = uar.role_id
                AND r.application_id = uar.application_id
                AND r.is_active = 1
-            WHERE uar.user_id = :user_id
-  AND uar.revoked_at IS NULL
-  AND EXISTS (
-      SELECT 1
-      FROM role_permissions rp_access
-      INNER JOIN permissions p_access
-          ON p_access.id = rp_access.permission_id
-         AND p_access.application_id = rp_access.application_id
-      WHERE rp_access.application_id = uar.application_id
-        AND rp_access.role_id = uar.role_id
-        AND p_access.code = \'access\'
-  )
-ORDER BY a.sort_order, a.code'
+             WHERE uar.user_id = :user_id
+               AND uar.revoked_at IS NULL
+               AND a.code <> 'maintenance'
+               AND EXISTS (
+                   SELECT 1
+                   FROM role_permissions rp_access
+                   INNER JOIN permissions p_access
+                      ON p_access.id = rp_access.permission_id
+                     AND p_access.application_id =
+                         rp_access.application_id
+                   WHERE rp_access.application_id =
+                         uar.application_id
+                     AND rp_access.role_id = uar.role_id
+                     AND p_access.code = 'access'
+               )
+             ORDER BY a.sort_order, a.code"
         );
 
-        $accessStatement->execute(['user_id' => $userId]);
-
-        $applications = [];
-        $indexes      = [];
+        $accessStatement->execute([
+            'user_id' => $userId,
+        ]);
 
         foreach ($accessStatement->fetchAll() as $row) {
             $code = (string) $row['code'];
 
-            $applications[] = [
-                'code'        => $code,
-                'name'        => (string) $row['name'],
-                'base_path'   => (string) $row['base_path'],
-                'role'        => [
+            $applications[$code] = [
+                'code'         => $code,
+                'name'         => (string) $row['name'],
+                'base_path'    => (string) $row['base_path'],
+                'access_model' => 'single_role',
+                'role'         => [
                     'code' => (string) $row['role_code'],
                     'name' => (string) $row['role_name'],
                 ],
-                'permissions' => [],
+                'permissions'  => [],
+                'grants'       => [],
+                '_sort_order'  => (int) $row['sort_order'],
             ];
-
-            $indexes[$code] = array_key_last($applications);
         }
 
-        if ($applications === []) {
-            return [];
+        /*
+         * Load permissions for standard applications.
+         */
+        if ($applications !== []) {
+            $permissionsStatement = $this->pdo->prepare(
+                "SELECT
+                    a.code AS application_code,
+                    p.code AS permission_code
+                 FROM user_application_roles uar
+                 INNER JOIN applications a
+                    ON a.id = uar.application_id
+                   AND a.is_active = 1
+                 INNER JOIN application_roles r
+                    ON r.id = uar.role_id
+                   AND r.application_id = uar.application_id
+                   AND r.is_active = 1
+                 INNER JOIN role_permissions rp
+                    ON rp.application_id = uar.application_id
+                   AND rp.role_id = uar.role_id
+                 INNER JOIN permissions p
+                    ON p.id = rp.permission_id
+                   AND p.application_id = uar.application_id
+                 WHERE uar.user_id = :user_id
+                   AND uar.revoked_at IS NULL
+                   AND a.code <> 'maintenance'
+                   AND EXISTS (
+                       SELECT 1
+                       FROM role_permissions rp_access
+                       INNER JOIN permissions p_access
+                          ON p_access.id =
+                             rp_access.permission_id
+                         AND p_access.application_id =
+                             rp_access.application_id
+                       WHERE rp_access.application_id =
+                             uar.application_id
+                         AND rp_access.role_id =
+                             uar.role_id
+                         AND p_access.code = 'access'
+                   )
+                 ORDER BY a.sort_order, p.code"
+            );
+
+            $permissionsStatement->execute([
+                'user_id' => $userId,
+            ]);
+
+            foreach ($permissionsStatement->fetchAll() as $row) {
+                $code = (string) $row['application_code'];
+
+                if (! isset($applications[$code])) {
+                    continue;
+                }
+
+                $applications[$code]['permissions'][] =
+                (string) $row['permission_code'];
+            }
         }
 
-        $permissionsStatement = $this->pdo->prepare(
-            'SELECT
+        /*
+         * Maintenance access now comes from maintenance_access_grants.
+         *
+         * Each territorial grant retains its own permissions. We do not
+         * merge operational permissions between locations because doing so
+         * would allow one location's level to leak into another location.
+         */
+        $maintenanceStatement = $this->pdo->prepare(
+            "SELECT
+                mag.id AS grant_id,
+                a.id AS application_id,
                 a.code AS application_code,
-                p.code AS permission_code
-             FROM user_application_roles uar
+                a.name AS application_name,
+                a.base_path,
+                a.sort_order,
+                r.id AS role_id,
+                r.code AS role_code,
+                r.name AS role_name,
+                mag.location_id,
+                l.code AS location_code,
+                l.name AS location_name
+             FROM maintenance_access_grants mag
              INNER JOIN applications a
-                ON a.id = uar.application_id
+                ON a.id = mag.application_id
+               AND a.code = 'maintenance'
                AND a.is_active = 1
              INNER JOIN application_roles r
-                ON r.id = uar.role_id
-               AND r.application_id = uar.application_id
+                ON r.id = mag.role_id
+               AND r.application_id = mag.application_id
                AND r.is_active = 1
-             INNER JOIN role_permissions rp
-                ON rp.application_id = uar.application_id
-               AND rp.role_id = uar.role_id
-             INNER JOIN permissions p
-                ON p.id = rp.permission_id
-               AND p.application_id = uar.application_id
-             WHERE uar.user_id = :user_id
-  AND uar.revoked_at IS NULL
-  AND EXISTS (
-      SELECT 1
-      FROM role_permissions rp_access
-      INNER JOIN permissions p_access
-          ON p_access.id = rp_access.permission_id
-         AND p_access.application_id = rp_access.application_id
-      WHERE rp_access.application_id = uar.application_id
-        AND rp_access.role_id = uar.role_id
-        AND p_access.code = \'access\'
-  )
-ORDER BY a.code, p.code'
+             LEFT JOIN locations l
+                ON l.id = mag.location_id
+             WHERE mag.user_id = :user_id
+               AND mag.revoked_at IS NULL
+               AND (
+                   mag.location_id IS NULL
+                   OR l.is_active = 1
+               )
+               AND EXISTS (
+                   SELECT 1
+                   FROM role_permissions rp_access
+                   INNER JOIN permissions p_access
+                      ON p_access.id = rp_access.permission_id
+                     AND p_access.application_id =
+                         rp_access.application_id
+                   WHERE rp_access.application_id =
+                         mag.application_id
+                     AND rp_access.role_id = mag.role_id
+                     AND p_access.code = 'access'
+               )
+             ORDER BY
+                CASE
+                    WHEN mag.location_id IS NULL THEN 0
+                    ELSE 1
+                END,
+                l.sort_order,
+                l.name,
+                mag.id"
         );
 
-        $permissionsStatement->execute(['user_id' => $userId]);
+        $maintenanceStatement->execute([
+            'user_id' => $userId,
+        ]);
 
-        foreach ($permissionsStatement->fetchAll() as $row) {
-            $applicationCode = (string) $row['application_code'];
+        $maintenanceRows = $maintenanceStatement->fetchAll();
 
-            if (! array_key_exists($applicationCode, $indexes)) {
-                continue;
+        if ($maintenanceRows !== []) {
+            $first = $maintenanceRows[0];
+
+            $maintenance = [
+                'code'         => 'maintenance',
+                'name'         => (string) $first['application_name'],
+                'base_path'    => (string) $first['base_path'],
+                'access_model' => 'location_grants',
+                'role'         => null,
+                'permissions'  => [],
+                'grants'       => [],
+                '_sort_order'  => (int) $first['sort_order'],
+            ];
+
+            $roleSummaries = [];
+            $grantIndexes  = [];
+            $globalGrantId = null;
+
+            foreach ($maintenanceRows as $row) {
+                $grantId = (int) $row['grant_id'];
+
+                $role = [
+                    'code' => (string) $row['role_code'],
+                    'name' => (string) $row['role_name'],
+                ];
+
+                $roleSummaries[$role['code']] = $role;
+
+                $location = null;
+
+                if ($row['location_id'] !== null) {
+                    $location = [
+                        'id'   => (int) $row['location_id'],
+                        'code' => (string) $row['location_code'],
+                        'name' => (string) $row['location_name'],
+                    ];
+                } else {
+                    $globalGrantId = $grantId;
+                }
+
+                $maintenance['grants'][] = [
+                    'id'          => $grantId,
+                    'role'        => $role,
+                    'location'    => $location,
+                    'is_global'   => $location === null,
+                    'permissions' => [],
+                ];
+
+                $grantIndexes[$grantId] =
+                    array_key_last($maintenance['grants']);
             }
 
-            $index = $indexes[$applicationCode];
+            /*
+             * Load permissions independently for every Maintenance grant.
+             */
+            $grantPermissions = $this->pdo->prepare(
+                "SELECT
+                    mag.id AS grant_id,
+                    p.code AS permission_code
+                 FROM maintenance_access_grants mag
+                 INNER JOIN applications a
+                    ON a.id = mag.application_id
+                   AND a.code = 'maintenance'
+                   AND a.is_active = 1
+                 INNER JOIN application_roles r
+                    ON r.id = mag.role_id
+                   AND r.application_id = mag.application_id
+                   AND r.is_active = 1
+                 INNER JOIN role_permissions rp
+                    ON rp.application_id = mag.application_id
+                   AND rp.role_id = mag.role_id
+                 INNER JOIN permissions p
+                    ON p.id = rp.permission_id
+                   AND p.application_id = mag.application_id
+                 LEFT JOIN locations l
+                    ON l.id = mag.location_id
+                 WHERE mag.user_id = :user_id
+                   AND mag.revoked_at IS NULL
+                   AND (
+                       mag.location_id IS NULL
+                       OR l.is_active = 1
+                   )
+                 ORDER BY mag.id, p.code"
+            );
 
-            $applications[$index]['permissions'][] =
-            (string) $row['permission_code'];
+            $grantPermissions->execute([
+                'user_id' => $userId,
+            ]);
+
+            foreach ($grantPermissions->fetchAll() as $row) {
+                $grantId = (int) $row['grant_id'];
+
+                if (! isset($grantIndexes[$grantId])) {
+                    continue;
+                }
+
+                $index = $grantIndexes[$grantId];
+
+                $maintenance['grants'][$index]['permissions'][] =
+                (string) $row['permission_code'];
+            }
+
+            /*
+             * Compatibility summary for the current authorization layer:
+             *
+             * - A GLOBAL grant can safely expose all of its permissions at
+             *   application level.
+             * - Territorial grants expose only "access" at application level.
+             *   Their operational permissions stay attached to each grant
+             *   until the location-aware authorization resolver is introduced.
+             */
+            if ($globalGrantId !== null) {
+                $index = $grantIndexes[$globalGrantId];
+
+                $maintenance['permissions'] =
+                    $maintenance['grants'][$index]['permissions'];
+            } else {
+                $maintenance['permissions'] = ['access'];
+            }
+
+            if (count($roleSummaries) === 1) {
+                $maintenance['role'] = reset($roleSummaries);
+            }
+
+            $applications['maintenance'] = $maintenance;
         }
 
-        return $applications;
+        /*
+         * Restore the catalogue order used by the Hub.
+         */
+        $result = array_values($applications);
+
+        usort(
+            $result,
+            static fn(array $left, array $right): int =>
+            ($left['_sort_order'] ?? 0)
+            <=> ($right['_sort_order'] ?? 0)
+        );
+
+        foreach ($result as &$application) {
+            unset($application['_sort_order']);
+        }
+
+        unset($application);
+
+        return $result;
     }
 
     private function getCoreApplicationId(): ?int

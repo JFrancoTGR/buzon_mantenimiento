@@ -41,17 +41,17 @@ final class UserAdminService
 
         $rows = $this->pdo->query(
             "SELECT
-                a.id AS application_id,
-                a.code AS application_code,
-                a.name AS application_name,
-                a.is_active AS application_active,
-                r.code AS role_code,
-                r.name AS role_name
-             FROM applications a
-             LEFT JOIN application_roles r
-                ON r.application_id = a.id
-               AND r.is_active = 1
-             ORDER BY a.sort_order, a.code, r.name"
+            a.id AS application_id,
+            a.code AS application_code,
+            a.name AS application_name,
+            a.is_active AS application_active,
+            r.code AS role_code,
+            r.name AS role_name
+         FROM applications a
+         LEFT JOIN application_roles r
+            ON r.application_id = a.id
+           AND r.is_active = 1
+         ORDER BY a.sort_order, a.code, r.name"
         )->fetchAll();
 
         $applications = [];
@@ -61,10 +61,14 @@ final class UserAdminService
 
             if (! isset($applications[$code])) {
                 $applications[$code] = [
-                    'code'      => $code,
-                    'name'      => (string) $row['application_name'],
-                    'is_active' => (bool) $row['application_active'],
-                    'roles'     => [],
+                    'code'         => $code,
+                    'name'         => (string) $row['application_name'],
+                    'is_active'    => (bool) $row['application_active'],
+                    'access_model' => $code === 'maintenance'
+                        ? 'location_grants'
+                        : 'single_role',
+                    'roles'        => [],
+                    'locations'    => [],
                 ];
             }
 
@@ -76,15 +80,35 @@ final class UserAdminService
             }
         }
 
+        if (isset($applications['maintenance'])) {
+            $locationRows = $this->pdo->query(
+                "SELECT
+                id,
+                code,
+                name
+             FROM locations
+             WHERE is_active = 1
+             ORDER BY sort_order, name, id"
+            )->fetchAll();
+
+            foreach ($locationRows as $location) {
+                $applications['maintenance']['locations'][] = [
+                    'id'   => (int) $location['id'],
+                    'code' => (string) $location['code'],
+                    'name' => (string) $location['name'],
+                ];
+            }
+        }
+
         return [
-            'statuses'          => self::STATUSES,
-            'applications'      => array_values($applications),
-            'can_manage_access' => AuthorizationService::hasPermission(
+            'statuses'                           => self::STATUSES,
+            'applications'                       => array_values($applications),
+            'can_manage_access'                  => AuthorizationService::hasPermission(
                 $actor,
                 'core',
                 'access.manage'
             ),
-            'invitation_ttl_hours' => max(
+            'invitation_ttl_hours'               => max(
                 1,
                 Env::int('USER_INVITATION_TTL_HOURS', 72)
             ),
@@ -95,7 +119,7 @@ final class UserAdminService
                     10
                 )
             ),
-            'invitation_resend_max_per_hour' => max(
+            'invitation_resend_max_per_hour'     => max(
                 1,
                 Env::int(
                     'USER_INVITATION_RESEND_MAX_PER_HOUR',
@@ -380,15 +404,27 @@ final class UserAdminService
         }
 
         if ($application !== '') {
-            $where[] = "EXISTS (
-                SELECT 1
-                FROM user_application_roles uar_filter
-                INNER JOIN applications a_filter
-                    ON a_filter.id = uar_filter.application_id
-                WHERE uar_filter.user_id = u.id
-                  AND uar_filter.revoked_at IS NULL
-                  AND a_filter.code = :application
-            )";
+            if ($application === 'maintenance') {
+                $where[] = "EXISTS (
+            SELECT 1
+            FROM maintenance_access_grants mag_filter
+            INNER JOIN applications a_filter
+                ON a_filter.id = mag_filter.application_id
+            WHERE mag_filter.user_id = u.id
+              AND mag_filter.revoked_at IS NULL
+              AND a_filter.code = :application
+        )";
+            } else {
+                $where[] = "EXISTS (
+            SELECT 1
+            FROM user_application_roles uar_filter
+            INNER JOIN applications a_filter
+                ON a_filter.id = uar_filter.application_id
+            WHERE uar_filter.user_id = u.id
+              AND uar_filter.revoked_at IS NULL
+              AND a_filter.code = :application
+        )";
+            }
 
             $params['application'] = $application;
         }
@@ -472,15 +508,15 @@ final class UserAdminService
                 'created_at'        => $row['created_at'],
                 'deactivated_at'    => $row['deactivated_at'],
                 'invitation'        =>
-                    $row['invitation_id'] !== null
+                $row['invitation_id'] !== null
                     ? [
-                        'status' =>
-                            (string) $row['invitation_status'],
-                        'created_at' =>
-                            $row['invitation_created_at'],
-                        'expires_at' =>
-                            $row['invitation_expires_at'],
-                    ]
+                    'status'     =>
+                    (string) $row['invitation_status'],
+                    'created_at' =>
+                    $row['invitation_created_at'],
+                    'expires_at' =>
+                    $row['invitation_expires_at'],
+                ]
                     : null,
                 'applications'      => [],
             ];
@@ -494,25 +530,32 @@ final class UserAdminService
                 array_fill(0, count($ids), '?')
             );
 
+            /*
+     * Generic application access.
+     *
+     * Maintenance is intentionally excluded because its authoritative
+     * access source is maintenance_access_grants.
+     */
             $assignments = $this->pdo->prepare(
                 "SELECT
-                    uar.user_id,
-                    a.code AS application_code,
-                    a.name AS application_name,
-                    r.code AS role_code,
-                    r.name AS role_name
-                 FROM user_application_roles uar
-                 INNER JOIN applications a
-                    ON a.id = uar.application_id
-                 INNER JOIN application_roles r
-                    ON r.id = uar.role_id
-                   AND r.application_id = uar.application_id
-                 WHERE uar.revoked_at IS NULL
-                   AND uar.user_id IN ({$placeholders})
-                 ORDER BY
-                    uar.user_id,
-                    a.sort_order,
-                    a.code"
+            uar.user_id,
+            a.code AS application_code,
+            a.name AS application_name,
+            r.code AS role_code,
+            r.name AS role_name
+         FROM user_application_roles uar
+         INNER JOIN applications a
+            ON a.id = uar.application_id
+         INNER JOIN application_roles r
+            ON r.id = uar.role_id
+           AND r.application_id = uar.application_id
+         WHERE uar.revoked_at IS NULL
+           AND a.code <> 'maintenance'
+           AND uar.user_id IN ({$placeholders})
+         ORDER BY
+            uar.user_id,
+            a.sort_order,
+            a.code"
             );
 
             $assignments->execute($ids);
@@ -525,13 +568,129 @@ final class UserAdminService
                 }
 
                 $items[$userId]['applications'][] = [
-                    'code' => (string) $assignment['application_code'],
-                    'name' => (string) $assignment['application_name'],
-                    'role' => [
+                    'code'         => (string) $assignment['application_code'],
+                    'name'         => (string) $assignment['application_name'],
+                    'access_model' => 'single_role',
+                    'role'         => [
                         'code' => (string) $assignment['role_code'],
                         'name' => (string) $assignment['role_name'],
                     ],
+                    'grants'       => [],
                 ];
+            }
+
+            /*
+     * Maintenance access grants.
+     */
+            $maintenance = $this->pdo->prepare(
+                "SELECT
+            mag.id AS grant_id,
+            mag.user_id,
+            a.code AS application_code,
+            a.name AS application_name,
+            r.code AS role_code,
+            r.name AS role_name,
+            mag.location_id,
+            l.code AS location_code,
+            l.name AS location_name,
+            l.is_active AS location_active,
+            mag.source_type,
+            mag.source_id,
+            mag.granted_at
+         FROM maintenance_access_grants mag
+         INNER JOIN applications a
+            ON a.id = mag.application_id
+         INNER JOIN application_roles r
+            ON r.id = mag.role_id
+           AND r.application_id = mag.application_id
+         LEFT JOIN locations l
+            ON l.id = mag.location_id
+         WHERE mag.revoked_at IS NULL
+           AND a.code = 'maintenance'
+           AND mag.user_id IN ({$placeholders})
+         ORDER BY
+            mag.user_id,
+            CASE
+                WHEN mag.location_id IS NULL THEN 0
+                ELSE 1
+            END,
+            l.sort_order,
+            l.name,
+            mag.id"
+            );
+
+            $maintenance->execute($ids);
+
+            $maintenanceByUser = [];
+
+            foreach ($maintenance->fetchAll() as $grant) {
+                $userId = (int) $grant['user_id'];
+
+                if (! isset($items[$userId])) {
+                    continue;
+                }
+
+                if (! isset($maintenanceByUser[$userId])) {
+                    $maintenanceByUser[$userId] = [
+                        'code'         => (string) $grant['application_code'],
+                        'name'         => (string) $grant['application_name'],
+                        'access_model' => 'location_grants',
+                        'role'         => null,
+                        'grants'       => [],
+                        '_roles'       => [],
+                    ];
+                }
+
+                $role = [
+                    'code' => (string) $grant['role_code'],
+                    'name' => (string) $grant['role_name'],
+                ];
+
+                $maintenanceByUser[$userId]['_roles'][
+                    (string) $grant['role_code']
+                ] = $role;
+
+                $location = null;
+
+                if ($grant['location_id'] !== null) {
+                    $location = [
+                        'id'        => (int) $grant['location_id'],
+                        'code'      => (string) $grant['location_code'],
+                        'name'      => (string) $grant['location_name'],
+                        'is_active' => (bool) $grant['location_active'],
+                    ];
+                }
+
+                $maintenanceByUser[$userId]['grants'][] = [
+                    'id'          => (int) $grant['grant_id'],
+                    'role'        => $role,
+                    'location'    => $location,
+                    'is_global'   => $grant['location_id'] === null,
+                    'source_type' => (string) $grant['source_type'],
+                    'source_id'   => $grant['source_id'] !== null
+                        ? (int) $grant['source_id']
+                        : null,
+                    'granted_at'  => $grant['granted_at'],
+                ];
+            }
+
+            foreach ($maintenanceByUser as $userId => $application) {
+                /*
+         * Backward-compatible summary for the current users.js.
+         *
+         * If all grants have the same role, expose that role at the
+         * application level as well. Once mixed roles exist, role=null
+         * and the new UI will render each grant individually.
+         */
+                if (count($application['_roles']) === 1) {
+                    $application['role'] = reset(
+                        $application['_roles']
+                    );
+                }
+
+                unset($application['_roles']);
+
+                $items[$userId]['applications'][] = $application;
             }
         }
 
@@ -548,7 +707,6 @@ final class UserAdminService
             ],
         ];
     }
-
 
     /**
      * @param array<string, mixed> $actor
@@ -610,7 +768,7 @@ final class UserAdminService
         }
 
         return [
-            'user_id' => $userId,
+            'user_id'        => $userId,
             'tokens_revoked' => $revoked,
         ];
     }
@@ -645,7 +803,7 @@ final class UserAdminService
             trim((string) ($payload['status'] ?? ''))
         );
 
-        if (!in_array(
+        if (! in_array(
             $newStatus,
             ['active', 'inactive'],
             true
@@ -668,7 +826,7 @@ final class UserAdminService
                 $actorId,
                 $this->coreApplicationId(),
                 [
-                    'reason' => 'self_deactivation_denied',
+                    'reason'           => 'self_deactivation_denied',
                     'requested_status' => $newStatus,
                 ]
             );
@@ -700,7 +858,7 @@ final class UserAdminService
 
                 return [
                     'user_id' => $userId,
-                    'status' => $newStatus,
+                    'status'  => $newStatus,
                     'changed' => false,
                 ];
             }
@@ -720,7 +878,7 @@ final class UserAdminService
             if (
                 $newStatus === 'active'
                 && (
-                    !is_string($target['password_hash'])
+                    ! is_string($target['password_hash'])
                     || (string) $target['password_hash'] === ''
                     || $target['email_verified_at'] === null
                 )
@@ -758,9 +916,9 @@ final class UserAdminService
             );
 
             $update->execute([
-                'status' => $newStatus,
+                'status'          => $newStatus,
                 'status_for_date' => $newStatus,
-                'id' => $userId,
+                'id'              => $userId,
             ]);
 
             $this->revokeSessions($userId);
@@ -790,7 +948,7 @@ final class UserAdminService
             if (
                 $exception instanceof HttpException
                 && $exception->errorCode ===
-                    'last_system_administrator_protected'
+                'last_system_administrator_protected'
             ) {
                 $this->audit->safeRecord(
                     'user.deactivate.denied',
@@ -799,8 +957,8 @@ final class UserAdminService
                     $actorId,
                     $this->coreApplicationId(),
                     [
-                        'reason' =>
-                            'last_system_administrator_protected',
+                        'reason'           =>
+                        'last_system_administrator_protected',
                         'requested_status' => $newStatus,
                     ]
                 );
@@ -811,7 +969,7 @@ final class UserAdminService
 
         return [
             'user_id' => $userId,
-            'status' => $newStatus,
+            'status'  => $newStatus,
             'changed' => true,
         ];
     }
@@ -876,7 +1034,15 @@ final class UserAdminService
             );
         }
 
-        if (!array_key_exists('role_code', $payload)) {
+        if ($applicationCode === 'maintenance') {
+            throw new HttpException(
+                409,
+                'maintenance_grants_required',
+                'El acceso de Mantenimiento se administra mediante nivel y ubicación.'
+            );
+        }
+
+        if (! array_key_exists('role_code', $payload)) {
             throw new HttpException(
                 422,
                 'missing_role_code',
@@ -887,8 +1053,8 @@ final class UserAdminService
         $roleCode = $payload['role_code'] === null
             ? null
             : strtolower(
-                trim((string) $payload['role_code'])
-            );
+            trim((string) $payload['role_code'])
+        );
 
         if ($roleCode === '') {
             $roleCode = null;
@@ -908,7 +1074,7 @@ final class UserAdminService
             );
         }
 
-        $auditApplicationId = null;
+        $auditApplicationId   = null;
         $auditCurrentRoleCode = null;
 
         $this->pdo->beginTransaction();
@@ -936,7 +1102,7 @@ final class UserAdminService
                 );
             }
 
-            $applicationId = (int) $application['id'];
+            $applicationId      = (int) $application['id'];
             $auditApplicationId = $applicationId;
 
             $current = $this->loadApplicationAccessForUpdate(
@@ -962,18 +1128,18 @@ final class UserAdminService
                 $this->pdo->commit();
 
                 return [
-                    'user_id' => $userId,
+                    'user_id'     => $userId,
                     'application' => [
                         'code' => (string) $application['code'],
                         'name' => (string) $application['name'],
                     ],
-                    'access' => [
+                    'access'      => [
                         'role' => [
                             'code' => $currentRoleCode,
                             'name' => (string) $current['role_name'],
                         ],
                     ],
-                    'changed' => false,
+                    'changed'     => false,
                 ];
             }
 
@@ -989,17 +1155,17 @@ final class UserAdminService
             }
 
             if ($roleCode === null) {
-                if (!$currentIsActive) {
+                if (! $currentIsActive) {
                     $this->pdo->commit();
 
                     return [
-                        'user_id' => $userId,
+                        'user_id'     => $userId,
                         'application' => [
                             'code' => (string) $application['code'],
                             'name' => (string) $application['name'],
                         ],
-                        'access' => null,
-                        'changed' => false,
+                        'access'      => null,
+                        'changed'     => false,
                     ];
                 }
 
@@ -1023,8 +1189,8 @@ final class UserAdminService
                 );
 
                 $revoke->execute([
-                    'actor_id' => $actorId,
-                    'user_id' => $userId,
+                    'actor_id'       => $actorId,
+                    'user_id'        => $userId,
                     'application_id' => $applicationId,
                 ]);
 
@@ -1046,30 +1212,30 @@ final class UserAdminService
                     $applicationId,
                     [
                         'application_code' =>
-                            (string) $application['code'],
-                        'role_code' => $currentRoleCode,
+                        (string) $application['code'],
+                        'role_code'        => $currentRoleCode,
                     ],
                     [
                         'application_code' =>
-                            (string) $application['code'],
-                        'role_code' => null,
+                        (string) $application['code'],
+                        'role_code'        => null,
                     ]
                 );
 
                 $this->pdo->commit();
 
                 return [
-                    'user_id' => $userId,
+                    'user_id'     => $userId,
                     'application' => [
                         'code' => (string) $application['code'],
                         'name' => (string) $application['name'],
                     ],
-                    'access' => null,
-                    'changed' => true,
+                    'access'      => null,
+                    'changed'     => true,
                 ];
             }
 
-            if (!(bool) $application['is_active']) {
+            if (! (bool) $application['is_active']) {
                 throw new HttpException(
                     409,
                     'application_inactive',
@@ -1130,9 +1296,9 @@ final class UserAdminService
             );
 
             $upsert->execute([
-                'user_id' => $userId,
-                'application_id' => $applicationId,
-                'role_id' => (int) $role['id'],
+                'user_id'             => $userId,
+                'application_id'      => $applicationId,
+                'role_id'             => (int) $role['id'],
                 'assigned_by_user_id' => $actorId,
             ]);
 
@@ -1150,33 +1316,33 @@ final class UserAdminService
                 $applicationId,
                 $currentIsActive
                     ? [
-                        'application_code' =>
-                            (string) $application['code'],
-                        'role_code' => $currentRoleCode,
-                    ]
+                    'application_code' =>
+                    (string) $application['code'],
+                    'role_code'        => $currentRoleCode,
+                ]
                     : null,
                 [
                     'application_code' =>
-                        (string) $application['code'],
-                    'role_code' => (string) $role['code'],
+                    (string) $application['code'],
+                    'role_code'        => (string) $role['code'],
                 ]
             );
 
             $this->pdo->commit();
 
             return [
-                'user_id' => $userId,
+                'user_id'     => $userId,
                 'application' => [
                     'code' => (string) $application['code'],
                     'name' => (string) $application['name'],
                 ],
-                'access' => [
+                'access'      => [
                     'role' => [
                         'code' => (string) $role['code'],
                         'name' => (string) $role['name'],
                     ],
                 ],
-                'changed' => true,
+                'changed'     => true,
             ];
         } catch (Throwable $exception) {
             if ($this->pdo->inTransaction()) {
@@ -1201,10 +1367,10 @@ final class UserAdminService
                     $actorId,
                     $auditApplicationId,
                     [
-                        'reason' => $exception->errorCode,
-                        'application_code' => $applicationCode,
-                        'current_role_code' =>
-                            $auditCurrentRoleCode,
+                        'reason'              => $exception->errorCode,
+                        'application_code'    => $applicationCode,
+                        'current_role_code'   =>
+                        $auditCurrentRoleCode,
                         'requested_role_code' => $roleCode,
                     ]
                 );
@@ -1212,7 +1378,7 @@ final class UserAdminService
 
             throw $exception;
         }
-    }    private function insertInvitedUser(
+    }private function insertInvitedUser(
         string $firstName,
         string $lastName,
         string $email
@@ -1279,10 +1445,7 @@ final class UserAdminService
 
 /**
  * @param mixed $value
- * @return array<int, array{
- *   application_code:string,
- *   role_code:string
- * }>
+ * @return array<int, array<string, mixed>>
  */
     private function normalizeApplications(
         mixed $value
@@ -1319,6 +1482,42 @@ final class UserAdminService
                 )
             );
 
+            if (
+                preg_match(
+                    '/^[a-z0-9_]+$/',
+                    $applicationCode
+                ) !== 1
+            ) {
+                throw new HttpException(
+                    422,
+                    'invalid_application_role',
+                    'La aplicación seleccionada no es válida.'
+                );
+            }
+
+            if (isset($seen[$applicationCode])) {
+                throw new HttpException(
+                    422,
+                    'duplicate_application',
+                    'No puedes enviar dos configuraciones de la misma aplicación.'
+                );
+            }
+
+            $seen[$applicationCode] = true;
+
+            if ($applicationCode === 'maintenance') {
+                $normalized[] = [
+                    'application_code' => 'maintenance',
+                    'role_code'        => null,
+                    'grants'           => $this->normalizeMaintenanceGrants(
+                        $item['grants'] ?? null,
+                        false
+                    ),
+                ];
+
+                continue;
+            }
+
             $roleCode = strtolower(
                 trim(
                     (string) (
@@ -1330,10 +1529,6 @@ final class UserAdminService
             if (
                 preg_match(
                     '/^[a-z0-9_]+$/',
-                    $applicationCode
-                ) !== 1
-                || preg_match(
-                    '/^[a-z0-9_]+$/',
                     $roleCode
                 ) !== 1
             ) {
@@ -1344,19 +1539,119 @@ final class UserAdminService
                 );
             }
 
-            if (isset($seen[$applicationCode])) {
-                throw new HttpException(
-                    422,
-                    'duplicate_application',
-                    'No puedes asignar dos roles de la misma aplicación.'
-                );
-            }
-
-            $seen[$applicationCode] = true;
-
             $normalized[] = [
                 'application_code' => $applicationCode,
                 'role_code'        => $roleCode,
+                'grants'           => [],
+            ];
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param mixed $value
+     * @return array<int, array{
+     *   role_code:string,
+     *   location_id:?int
+     * }>
+     */
+    private function normalizeMaintenanceGrants(
+        mixed $value,
+        bool $allowEmpty = true
+    ): array {
+        if (! is_array($value)) {
+            throw new HttpException(
+                422,
+                'invalid_maintenance_grants',
+                'La configuración de accesos de Mantenimiento no es válida.'
+            );
+        }
+
+        if ($value === []) {
+            if ($allowEmpty) {
+                return [];
+            }
+
+            throw new HttpException(
+                422,
+                'maintenance_grants_required',
+                'Debes indicar al menos un nivel y ubicación para Mantenimiento.'
+            );
+        }
+
+        $normalized    = [];
+        $seenLocations = [];
+
+        foreach ($value as $item) {
+            if (! is_array($item)) {
+                throw new HttpException(
+                    422,
+                    'invalid_maintenance_grants',
+                    'La configuración de accesos de Mantenimiento no es válida.'
+                );
+            }
+
+            $roleCode = strtolower(
+                trim((string) ($item['role_code'] ?? ''))
+            );
+
+            if (
+                preg_match('/^[a-z0-9_]+$/', $roleCode)
+                !== 1
+            ) {
+                throw new HttpException(
+                    422,
+                    'invalid_maintenance_role',
+                    'El nivel seleccionado para Mantenimiento no es válido.'
+                );
+            }
+
+            $rawLocationId = $item['location_id'] ?? null;
+
+            if ($rawLocationId === null) {
+                $locationId = null;
+            } elseif (
+                is_int($rawLocationId)
+                || (
+                    is_string($rawLocationId)
+                    && ctype_digit($rawLocationId)
+                )
+            ) {
+                $locationId = (int) $rawLocationId;
+
+                if ($locationId < 1) {
+                    throw new HttpException(
+                        422,
+                        'invalid_maintenance_location',
+                        'La ubicación seleccionada no es válida.'
+                    );
+                }
+            } else {
+                throw new HttpException(
+                    422,
+                    'invalid_maintenance_location',
+                    'La ubicación seleccionada no es válida.'
+                );
+            }
+
+            $locationKey = $locationId === null
+                ? 'global'
+                : (string) $locationId;
+
+            if (isset($seenLocations[$locationKey])) {
+                throw new HttpException(
+                    422,
+                    'duplicate_maintenance_location',
+                    'No puedes asignar dos niveles simultáneos a la misma ubicación.'
+                );
+            }
+
+            $seenLocations[$locationKey] = true;
+
+            $normalized[] = [
+                'role_code'   => $roleCode,
+                'location_id' => $locationId,
             ];
         }
 
@@ -1364,11 +1659,7 @@ final class UserAdminService
     }
 
 /**
- * @param array<int, array{
- *   application_code:string,
- *   role_code:string
- * }> $applications
- *
+ * @param array<int, array<string, mixed>> $applications
  * @return array<int, array<string, mixed>>
  */
     private function assignApplicationsWithinTransaction(
@@ -1415,6 +1706,20 @@ final class UserAdminService
         $result = [];
 
         foreach ($applications as $application) {
+            if (
+                $application['application_code']
+                === 'maintenance'
+            ) {
+                $result[] =
+                $this->assignMaintenanceGrantsWithinTransaction(
+                    $userId,
+                    $actorId,
+                    $application['grants'] ?? []
+                );
+
+                continue;
+            }
+
             $resolve->execute([
                 'application_code' =>
                 $application['application_code'],
@@ -1458,24 +1763,272 @@ final class UserAdminService
             );
 
             $result[] = [
-                'code' =>
+                'code'         =>
                 (string) $row['application_code'],
-                'name' =>
+                'name'         =>
                 (string) $row['application_name'],
-                'role' => [
+                'access_model' => 'single_role',
+                'role'         => [
                     'code' =>
                     (string) $row['role_code'],
                     'name' =>
                     (string) $row['role_name'],
                 ],
+                'grants'       => [],
             ];
         }
 
         return $result;
     }
 
-/** @param array<string, mixed> $actor */
+    /**
+     * @param array<int, array{
+     *   role_code:string,
+     *   location_id:?int
+     * }> $grants
+     *
+     * @return array<string, mixed>
+     */
+    private function assignMaintenanceGrantsWithinTransaction(
+        int $userId,
+        int $actorId,
+        array $grants
+    ): array {
+        $application = $this->loadApplication(
+            'maintenance'
+        );
 
+        if (
+            $application === null
+            || ! (bool) $application['is_active']
+        ) {
+            throw new HttpException(
+                409,
+                'maintenance_application_unavailable',
+                'La aplicación Mantenimiento no está disponible.'
+            );
+        }
+
+        $applicationId = (int) $application['id'];
+
+        $resolved = $this->resolveMaintenanceGrantDefinitions(
+            $applicationId,
+            $grants
+        );
+
+        $insert = $this->pdo->prepare(
+            'INSERT INTO maintenance_access_grants (
+            user_id,
+            application_id,
+            role_id,
+            location_id,
+            source_type,
+            source_id,
+            granted_by_user_id,
+            granted_at
+         ) VALUES (
+            :user_id,
+            :application_id,
+            :role_id,
+            :location_id,
+            :source_type,
+            NULL,
+            :granted_by_user_id,
+            UTC_TIMESTAMP()
+         )'
+        );
+
+        $resultGrants = [];
+        $summaryRoles = [];
+
+        foreach ($resolved as $grant) {
+            $insert->execute([
+                'user_id'            => $userId,
+                'application_id'     => $applicationId,
+                'role_id'            => (int) $grant['role']['id'],
+                'location_id'        =>
+                $grant['location'] !== null
+                    ? (int) $grant['location']['id']
+                    : null,
+                'source_type'        => 'invitation',
+                'granted_by_user_id' => $actorId,
+            ]);
+
+            $grantId = (int) $this->pdo->lastInsertId();
+
+            $role = [
+                'code' => (string) $grant['role']['code'],
+                'name' => (string) $grant['role']['name'],
+            ];
+
+            $location = null;
+
+            if ($grant['location'] !== null) {
+                $location = [
+                    'id'        => (int) $grant['location']['id'],
+                    'code'      => (string) $grant['location']['code'],
+                    'name'      => (string) $grant['location']['name'],
+                    'is_active' => true,
+                ];
+            }
+
+            $this->audit->record(
+                'grant.created',
+                'maintenance_access_grant',
+                $grantId,
+                $actorId,
+                $applicationId,
+                null,
+                [
+                    'user_id'          => $userId,
+                    'application_code' => 'maintenance',
+                    'role_code'        => $role['code'],
+                    'location_id'      =>
+                    $location !== null
+                        ? $location['id']
+                        : null,
+                    'source_type'      => 'invitation',
+                ]
+            );
+
+            $summaryRoles[$role['code']] = $role;
+
+            $resultGrants[] = [
+                'id'          => $grantId,
+                'role'        => $role,
+                'location'    => $location,
+                'is_global'   => $location === null,
+                'source_type' => 'invitation',
+                'source_id'   => null,
+            ];
+        }
+
+        $summaryRole = null;
+
+        if (count($summaryRoles) === 1) {
+            $summaryRole = reset($summaryRoles);
+        }
+
+        return [
+            'code'         => 'maintenance',
+            'name'         => (string) $application['name'],
+            'access_model' => 'location_grants',
+            'role'         => $summaryRole,
+            'grants'       => $resultGrants,
+        ];
+    }
+
+    /**
+     * @param array<int, array{
+     *   role_code:string,
+     *   location_id:?int
+     * }> $grants
+     *
+     * @return array<int, array{
+     *   role:array<string, mixed>,
+     *   location:?array<string, mixed>
+     * }>
+     */
+    private function resolveMaintenanceGrantDefinitions(
+        int $applicationId,
+        array $grants
+    ): array {
+        if ($grants === []) {
+            throw new HttpException(
+                422,
+                'maintenance_grants_required',
+                'Debes indicar al menos un acceso de Mantenimiento.'
+            );
+        }
+
+        $resolved       = [];
+        $hasGlobal      = false;
+        $hasTerritorial = false;
+
+        foreach ($grants as $grant) {
+            $roleCode   = (string) $grant['role_code'];
+            $locationId = $grant['location_id'];
+
+            $role = $this->loadApplicationRole(
+                $applicationId,
+                $roleCode
+            );
+
+            if ($role === null) {
+                throw new HttpException(
+                    422,
+                    'maintenance_role_not_available',
+                    'El nivel seleccionado para Mantenimiento no existe o está inactivo.'
+                );
+            }
+
+            if ($roleCode === 'administrator') {
+                if ($locationId !== null) {
+                    throw new HttpException(
+                        422,
+                        'maintenance_administrator_must_be_global',
+                        'El nivel Administrador de Mantenimiento debe ser global.'
+                    );
+                }
+
+                $hasGlobal = true;
+
+                $resolved[] = [
+                    'role'     => $role,
+                    'location' => null,
+                ];
+
+                continue;
+            }
+
+            if ($locationId === null) {
+                throw new HttpException(
+                    422,
+                    'maintenance_location_required',
+                    'El nivel seleccionado requiere una ubicación.'
+                );
+            }
+
+            $location = $this->loadActiveLocation(
+                (int) $locationId
+            );
+
+            if ($location === null) {
+                throw new HttpException(
+                    422,
+                    'maintenance_location_not_available',
+                    'La ubicación seleccionada no existe o está inactiva.'
+                );
+            }
+
+            $hasTerritorial = true;
+
+            $resolved[] = [
+                'role'     => $role,
+                'location' => $location,
+            ];
+        }
+
+        if ($hasGlobal && $hasTerritorial) {
+            throw new HttpException(
+                422,
+                'maintenance_global_territorial_conflict',
+                'Un acceso global no puede coexistir con accesos territoriales.'
+            );
+        }
+
+        if ($hasGlobal && count($resolved) !== 1) {
+            throw new HttpException(
+                422,
+                'maintenance_global_grant_must_be_unique',
+                'El acceso global de Mantenimiento debe ser el único grant activo.'
+            );
+        }
+
+        return $resolved;
+    }
+
+/** @param array<string, mixed> $actor */
 
     private function assertInvitationResendLimit(
         int $userId
@@ -1641,7 +2194,7 @@ final class UserAdminService
         );
 
         $statement->execute([
-            'user_id' => $userId,
+            'user_id'        => $userId,
             'application_id' => $applicationId,
         ]);
 
@@ -1671,7 +2224,33 @@ final class UserAdminService
 
         $statement->execute([
             'application_id' => $applicationId,
-            'code' => $roleCode,
+            'code'           => $roleCode,
+        ]);
+
+        $row = $statement->fetch();
+
+        return is_array($row)
+            ? $row
+            : null;
+    }
+
+    /** @return array<string, mixed>|null */
+    private function loadActiveLocation(
+        int $locationId
+    ): ?array {
+        $statement = $this->pdo->prepare(
+            'SELECT
+            id,
+            code,
+            name
+         FROM locations
+         WHERE id = :id
+           AND is_active = 1
+         LIMIT 1'
+        );
+
+        $statement->execute([
+            'id' => $locationId,
         ]);
 
         $row = $statement->fetch();
@@ -1756,7 +2335,7 @@ final class UserAdminService
                 'La operación dejaría a EU Tools sin otro administrador del sistema activo.'
             );
         }
-    }    private function actorId(array $actor): int
+    }private function actorId(array $actor): int
     {
         $actorId = (int) ($actor['id'] ?? 0);
 

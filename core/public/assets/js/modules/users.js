@@ -126,14 +126,22 @@ function populateInviteAccesses(applications, canManageAccess) {
   }
 
   available.forEach((application) => {
+    if (application.access_model === 'location_grants') {
+      inviteAccesses.append(createMaintenanceInviteAccess(application));
+
+      return;
+    }
+
     const field = document.createElement('label');
-    field.className = 'users-field users-invite-access';
+    field.className =
+      'users-field users-invite-access users-invite-access--single';
 
     const label = document.createElement('span');
     label.textContent = application.name || application.code;
 
     const select = document.createElement('select');
     select.dataset.inviteApplication = application.code;
+    select.dataset.inviteAccessModel = 'single_role';
 
     const empty = document.createElement('option');
     empty.value = '';
@@ -150,6 +158,125 @@ function populateInviteAccesses(applications, canManageAccess) {
     field.append(label, select);
     inviteAccesses.append(field);
   });
+}
+
+function createMaintenanceInviteAccess(application) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'users-invite-access users-invite-access--maintenance';
+
+  wrapper.dataset.inviteMaintenance = '';
+
+  const title = document.createElement('strong');
+  title.textContent = application.name || 'Mantenimiento';
+
+  wrapper.append(title);
+
+  const roles = Array.isArray(application.roles) ? application.roles : [];
+
+  const locations = Array.isArray(application.locations)
+    ? application.locations
+    : [];
+
+  const administratorRole = roles.find((role) => role.code === 'administrator');
+
+  const territorialRoles = roles.filter(
+    (role) => role.code !== 'administrator',
+  );
+
+  /*
+   * Global access.
+   */
+  const globalField = document.createElement('label');
+  globalField.className = 'users-field users-invite-access__global';
+
+  const globalLabel = document.createElement('span');
+  globalLabel.textContent = 'Acceso global';
+
+  const globalSelect = document.createElement('select');
+  globalSelect.dataset.inviteMaintenanceGlobal = '';
+
+  const globalEmpty = document.createElement('option');
+  globalEmpty.value = '';
+  globalEmpty.textContent = 'Sin acceso global';
+  globalSelect.append(globalEmpty);
+
+  if (administratorRole) {
+    const option = document.createElement('option');
+    option.value = administratorRole.code;
+    option.textContent = administratorRole.name || administratorRole.code;
+
+    globalSelect.append(option);
+  }
+
+  globalField.append(globalLabel, globalSelect);
+  wrapper.append(globalField);
+
+  /*
+   * Territorial access.
+   */
+  locations.forEach((location) => {
+    const field = document.createElement('label');
+    field.className = 'users-field users-invite-access__location';
+
+    const label = document.createElement('span');
+    label.textContent = location.name || location.code;
+
+    const select = document.createElement('select');
+
+    select.dataset.inviteMaintenanceLocation = String(location.id);
+
+    const empty = document.createElement('option');
+    empty.value = '';
+    empty.textContent = 'Sin acceso';
+    select.append(empty);
+
+    territorialRoles.forEach((role) => {
+      const option = document.createElement('option');
+      option.value = role.code;
+      option.textContent = role.name || role.code;
+      select.append(option);
+    });
+
+    field.append(label, select);
+    wrapper.append(field);
+  });
+
+  /*
+   * Prevent GLOBAL + territorial combinations in the UI.
+   * Backend validation remains authoritative.
+   */
+  globalSelect.addEventListener('change', () => {
+    const territorialSelects = wrapper.querySelectorAll(
+      '[data-invite-maintenance-location]',
+    );
+
+    if (globalSelect.value) {
+      territorialSelects.forEach((select) => {
+        select.value = '';
+        select.disabled = true;
+      });
+
+      return;
+    }
+
+    territorialSelects.forEach((select) => {
+      select.disabled = false;
+    });
+  });
+
+  wrapper.addEventListener('change', (event) => {
+    const territorial = event.target.closest(
+      '[data-invite-maintenance-location]',
+    );
+
+    if (!territorial || !territorial.value) {
+      return;
+    }
+
+    globalSelect.value = '';
+  });
+
+  return wrapper;
 }
 
 function bindEvents() {
@@ -257,9 +384,7 @@ async function loadUsers() {
 
 function renderUsers(items) {
   tableBody?.replaceChildren();
-  usersById = new Map(
-    items.map((user) => [Number(user.id), user]),
-  );
+  usersById = new Map(items.map((user) => [Number(user.id), user]));
 
   if (!items.length) {
     if (tableBody) {
@@ -392,19 +517,12 @@ function createUserActions(user) {
     }
   }
 
-  if (
-    user.status === 'active'
-    && Number(user.id) !== currentUserId
-  ) {
-    wrapper.append(
-      actionButton('Desactivar', 'deactivate', user.id, 'danger'),
-    );
+  if (user.status === 'active' && Number(user.id) !== currentUserId) {
+    wrapper.append(actionButton('Desactivar', 'deactivate', user.id, 'danger'));
   }
 
   if (user.status === 'inactive') {
-    wrapper.append(
-      actionButton('Activar', 'activate', user.id, 'primary'),
-    );
+    wrapper.append(actionButton('Activar', 'activate', user.id, 'primary'));
   }
 
   if (Boolean(context?.can_manage_access)) {
@@ -429,9 +547,7 @@ function actionButton(label, action, userId, variant = 'default') {
   const button = document.createElement('button');
   button.type = 'button';
 
-  const variantClass = variant === 'default'
-    ? ''
-    : ` users-action--${variant}`;
+  const variantClass = variant === 'default' ? '' : ` users-action--${variant}`;
 
   button.className = `users-action${variantClass}`;
   button.dataset.action = action;
@@ -454,8 +570,7 @@ function openAccessModal(userId) {
 
   if (accessUserSummary) {
     const name = user.full_name || user.email || 'Usuario';
-    accessUserSummary.textContent =
-      `${name} · ${user.email || 'Sin correo'}`;
+    accessUserSummary.textContent = `${name} · ${user.email || 'Sin correo'}`;
   }
 
   renderAccessEditor(user);
@@ -504,8 +619,7 @@ function renderAccessEditor(user) {
   if (rendered === 0) {
     const empty = document.createElement('p');
     empty.className = 'users-access-editor__empty';
-    empty.textContent =
-      'No hay aplicaciones disponibles para administrar.';
+    empty.textContent = 'No hay aplicaciones disponibles para administrar.';
     accessApplications.append(empty);
   }
 }
@@ -521,9 +635,7 @@ function createAccessEditorRow(user, application, currentAccess) {
   applicationName.textContent = application.name || application.code;
 
   const currentRoleName =
-    currentAccess?.role?.name
-    || currentAccess?.role?.code
-    || 'Sin acceso';
+    currentAccess?.role?.name || currentAccess?.role?.code || 'Sin acceso';
 
   const current = document.createElement('span');
   current.textContent = `Actual: ${currentRoleName}`;
@@ -531,8 +643,7 @@ function createAccessEditorRow(user, application, currentAccess) {
   applicationInfo.append(applicationName, current);
 
   const isSelfCore =
-    Number(user.id) === currentUserId
-    && application.code === 'core';
+    Number(user.id) === currentUserId && application.code === 'core';
 
   const currentRoleCode = currentAccess?.role?.code || '';
 
@@ -553,13 +664,11 @@ function createAccessEditorRow(user, application, currentAccess) {
   empty.textContent = 'Sin acceso';
   select.append(empty);
 
-  const roles = Array.isArray(application.roles)
-    ? [...application.roles]
-    : [];
+  const roles = Array.isArray(application.roles) ? [...application.roles] : [];
 
   if (
-    currentAccess?.role?.code
-    && !roles.some((role) => role.code === currentAccess.role.code)
+    currentAccess?.role?.code &&
+    !roles.some((role) => role.code === currentAccess.role.code)
   ) {
     roles.unshift({
       code: currentAccess.role.code,
@@ -592,8 +701,7 @@ function createAccessEditorRow(user, application, currentAccess) {
 
   const action = document.createElement('button');
   action.type = 'button';
-  action.className =
-    'button button--primary users-access-editor__apply';
+  action.className = 'button button--primary users-access-editor__apply';
   action.dataset.accessApply = '';
   action.textContent = 'Aplicar';
   action.disabled = true;
@@ -615,9 +723,11 @@ function createAccessEditorRow(user, application, currentAccess) {
 }
 
 function findUserApplicationAccess(user, applicationCode) {
-  return (user.applications || []).find(
-    (application) => application.code === applicationCode,
-  ) || null;
+  return (
+    (user.applications || []).find(
+      (application) => application.code === applicationCode,
+    ) || null
+  );
 }
 
 function handleAccessEditorChange(event) {
@@ -631,8 +741,7 @@ function handleAccessEditorChange(event) {
   if (!button) return;
 
   button.disabled =
-    select.disabled
-    || select.value === select.dataset.originalRoleCode;
+    select.disabled || select.value === select.dataset.originalRoleCode;
 }
 
 async function handleAccessEditorClick(event) {
@@ -663,27 +772,21 @@ async function applyAccessChange(select, button) {
     (item) => item.code === applicationCode,
   );
 
-  const userName =
-    user?.full_name
-    || user?.email
-    || 'este usuario';
+  const userName = user?.full_name || user?.email || 'este usuario';
 
   const applicationName = application?.name || applicationCode;
 
   let title = 'Cambiar rol';
-  let message =
-    `Se actualizará el acceso de ${userName} en ${applicationName}.`;
+  let message = `Se actualizará el acceso de ${userName} en ${applicationName}.`;
 
   if (!originalRoleCode && nextRoleCode) {
     title = 'Asignar acceso';
-    message =
-      `Se asignará acceso a ${applicationName} para ${userName}.`;
+    message = `Se asignará acceso a ${applicationName} para ${userName}.`;
   }
 
   if (originalRoleCode && !nextRoleCode) {
     title = 'Revocar acceso';
-    message =
-      `Se revocará el acceso de ${userName} a ${applicationName}.`;
+    message = `Se revocará el acceso de ${userName} a ${applicationName}.`;
   }
 
   const accepted = await confirmAction(
@@ -728,13 +831,10 @@ async function applyAccessChange(select, button) {
       return;
     }
 
-    showAccessMessage(
-      error?.message || 'No fue posible actualizar el acceso.',
-    );
+    showAccessMessage(error?.message || 'No fue posible actualizar el acceso.');
 
     select.disabled = false;
-    button.disabled =
-      select.value === select.dataset.originalRoleCode;
+    button.disabled = select.value === select.dataset.originalRoleCode;
     button.textContent = 'Aplicar';
   }
 }
@@ -840,8 +940,8 @@ async function handleTableActionError(error, action) {
   }
 
   if (
-    ['activate', 'deactivate'].includes(action)
-    && Number(error?.status) === 409
+    ['activate', 'deactivate'].includes(action) &&
+    Number(error?.status) === 409
   ) {
     await notify(
       action === 'activate'
@@ -874,10 +974,7 @@ async function changeUserStatus(userId, nextStatus) {
   if (!user) return;
 
   const activating = nextStatus === 'active';
-  const userName =
-    user.full_name
-    || user.email
-    || 'esta cuenta';
+  const userName = user.full_name || user.email || 'esta cuenta';
 
   const accepted = await confirmAction(
     activating ? 'Activar cuenta' : 'Desactivar cuenta',
@@ -900,14 +997,14 @@ async function changeUserStatus(userId, nextStatus) {
 
   await notify(
     changed
-      ? (activating ? 'Cuenta activada' : 'Cuenta desactivada')
+      ? activating
+        ? 'Cuenta activada'
+        : 'Cuenta desactivada'
       : 'Sin cambios',
     changed
-      ? (
-        activating
-          ? 'La cuenta volvió a quedar activa.'
-          : 'La cuenta quedó inactiva y sus sesiones fueron revocadas.'
-      )
+      ? activating
+        ? 'La cuenta volvió a quedar activa.'
+        : 'La cuenta quedó inactiva y sus sesiones fueron revocadas.'
       : 'La cuenta ya tenía ese estado.',
     changed ? 'success' : 'info',
   );
@@ -962,6 +1059,74 @@ async function revokeInvitation(userId) {
   await loadUsers();
 }
 
+function collectInvitationApplications() {
+  if (!inviteAccesses) {
+    return [];
+  }
+
+  const applications = [];
+
+  /*
+   * Standard single-role applications.
+   */
+  inviteAccesses
+    .querySelectorAll(
+      '[data-invite-application][data-invite-access-model="single_role"]',
+    )
+    .forEach((select) => {
+      if (!select.value) {
+        return;
+      }
+
+      applications.push({
+        application_code: select.dataset.inviteApplication,
+        role_code: select.value,
+      });
+    });
+
+  /*
+   * Maintenance grants.
+   */
+  const maintenance = inviteAccesses.querySelector('[data-invite-maintenance]');
+
+  if (maintenance) {
+    const grants = [];
+
+    const globalSelect = maintenance.querySelector(
+      '[data-invite-maintenance-global]',
+    );
+
+    if (globalSelect?.value) {
+      grants.push({
+        role_code: globalSelect.value,
+        location_id: null,
+      });
+    } else {
+      maintenance
+        .querySelectorAll('[data-invite-maintenance-location]')
+        .forEach((select) => {
+          if (!select.value) {
+            return;
+          }
+
+          grants.push({
+            role_code: select.value,
+            location_id: Number(select.dataset.inviteMaintenanceLocation),
+          });
+        });
+    }
+
+    if (grants.length > 0) {
+      applications.push({
+        application_code: 'maintenance',
+        grants,
+      });
+    }
+  }
+
+  return applications;
+}
+
 async function submitInvitation(event) {
   event.preventDefault();
 
@@ -973,14 +1138,7 @@ async function submitInvitation(event) {
 
   const formData = new FormData(inviteForm);
 
-  const applications = Array.from(
-    inviteAccesses?.querySelectorAll('[data-invite-application]') || [],
-  )
-    .filter((select) => select.value)
-    .map((select) => ({
-      application_code: select.dataset.inviteApplication,
-      role_code: select.value,
-    }));
+  const applications = collectInvitationApplications();
 
   const data = {
     first_name: String(formData.get('first_name') || '').trim(),
@@ -1005,6 +1163,12 @@ async function submitInvitation(event) {
 
     closeInviteModal();
     inviteForm.reset();
+
+    inviteAccesses
+      ?.querySelectorAll('[data-invite-maintenance-location]')
+      .forEach((select) => {
+        select.disabled = false;
+      });
 
     await notify(
       delivered ? 'Usuario invitado' : 'Usuario creado',
