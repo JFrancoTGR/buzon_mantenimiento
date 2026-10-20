@@ -267,19 +267,19 @@ function renderLocations(
     option.value = location.code;
 
     option.textContent =
-      location.has_active_supervisor
+      location.has_active_operator
         ? location.name
-        : `${location.name} · Sin supervisor configurado`;
+        : `${location.name} · Sin Operator configurado`;
 
     option.disabled =
-      !location.has_active_supervisor;
+      !location.has_active_operator;
 
     locationSelect.append(option);
   });
 
   if (
     selectedLocation
-      ?.has_active_supervisor
+      ?.has_active_operator
   ) {
     locationSelect.value =
       selectedLocation.code;
@@ -305,11 +305,11 @@ function renderLocations(
   if (
     selectedLocation
     && !selectedLocation
-      .has_active_supervisor
+      .has_active_operator
   ) {
     locationHelp.textContent =
       'La ubicación identificada no tiene un '
-      + 'Supervisor activo configurado. '
+      + 'Operator activo configurado. '
       + 'Selecciona otra sede o solicita al '
       + 'administrador que complete la asignación.';
 
@@ -917,7 +917,7 @@ async function submitTicket(event) {
 
     const deliveryWarning =
       !result.email_delivery?.reporter
-      || !result.email_delivery?.supervisor;
+      || !result.email_delivery?.operator;
 
     const additionalText =
       result.warning

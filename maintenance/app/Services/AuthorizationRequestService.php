@@ -57,10 +57,7 @@ final class AuthorizationRequestService
             );
         }
 
-        if (
-            !is_int($quotationId)
-            || $quotationId < 1
-        ) {
+        if (!is_int($quotationId) || $quotationId < 1) {
             throw new HttpException(
                 422,
                 'quotation_required',
@@ -68,21 +65,15 @@ final class AuthorizationRequestService
             );
         }
 
-        if (
-            !is_int($approverId)
-            || $approverId < 1
-        ) {
+        if (!is_int($approverId) || $approverId < 1) {
             throw new HttpException(
                 422,
-                'director_required',
-                'Selecciona al responsable de Dirección.'
+                'approver_required',
+                'Selecciona un Approver.'
             );
         }
 
-        if (
-            !is_int($rowVersion)
-            || $rowVersion < 1
-        ) {
+        if (!is_int($rowVersion) || $rowVersion < 1) {
             throw new HttpException(
                 422,
                 'invalid_row_version',
@@ -91,37 +82,32 @@ final class AuthorizationRequestService
         }
 
         $comment = $this->normalizeComment(
-            (string) (
-                $input['request_comment']
-                ?? ''
-            )
+            (string) ($input['request_comment'] ?? '')
         );
 
         $requestedAmount = $this->normalizeAmount(
-            (string) (
-                $input['requested_amount']
-                ?? ''
-            )
+            (string) ($input['requested_amount'] ?? '')
         );
 
         $actorId = (int) ($user['id'] ?? 0);
         $requestId = Http::requestId();
-        $directorRecipient = null;
+        $approverRecipient = null;
+
+        $ticket = null;
+        $quotation = null;
+        $approvalRequestId = 0;
 
         $this->pdo->beginTransaction();
 
         try {
-            $ticket = $this->loadTicketForUpdate(
-                $ticketId
-            );
+            $ticket = $this->loadTicketForUpdate($ticketId);
 
             $this->assertTicketAccess(
                 $user,
                 $ticket
             );
 
-            $locationId =
-                (int) $ticket['location_id'];
+            $locationId = (int) $ticket['location_id'];
 
             AuthorizationService::requirePermission(
                 $user,
@@ -131,19 +117,16 @@ final class AuthorizationRequestService
 
             AuthorizationService::requirePermission(
                 $user,
-                'ticket.assign.director',
+                'ticket.assign.approver',
                 $locationId
             );
 
-            $this->assertSupervisorControl(
+            $this->assertOperatorControl(
                 $user,
                 $ticket
             );
 
-            if (
-                (int) $ticket['row_version']
-                !== $rowVersion
-            ) {
+            if ((int) $ticket['row_version'] !== $rowVersion) {
                 throw new HttpException(
                     409,
                     'ticket_changed',
@@ -173,11 +156,10 @@ final class AuthorizationRequestService
                 );
             }
 
-            $quotation =
-                $this->loadCurrentQuotationForUpdate(
-                    $ticketId,
-                    $quotationId
-                );
+            $quotation = $this->loadCurrentQuotationForUpdate(
+                $ticketId,
+                $quotationId
+            );
 
             if ($quotation === null) {
                 throw new HttpException(
@@ -198,25 +180,20 @@ final class AuthorizationRequestService
                 );
             }
 
-            $director =
-                $this->loadEligibleDirector(
-                    $approverId,
-                    $locationId
-                );
+            $approver = $this->loadEligibleApprover(
+                $approverId,
+                $locationId
+            );
 
-            if ($director === null) {
+            if ($approver === null) {
                 throw new HttpException(
                     422,
-                    'director_not_eligible',
-                    'El usuario seleccionado no es un responsable activo de Dirección para esta ubicación.'
+                    'approver_not_eligible',
+                    'El usuario seleccionado no es un Approver activo para esta ubicación.'
                 );
             }
 
-            if (
-                $this->hasPendingApprovalRequest(
-                    $ticketId
-                )
-            ) {
+            if ($this->hasPendingApprovalRequest($ticketId)) {
                 throw new HttpException(
                     409,
                     'approval_request_exists',
@@ -235,14 +212,11 @@ final class AuthorizationRequestService
                 $locationId
             );
 
-            if (
-                $ticket['supervisor_user_id']
-                === null
-            ) {
+            if ($ticket['operator_user_id'] === null) {
                 throw new HttpException(
                     422,
-                    'supervisor_required',
-                    'El ticket requiere un supervisor asignado.'
+                    'operator_required',
+                    'El ticket requiere un Operator asignado.'
                 );
             }
 
@@ -257,15 +231,13 @@ final class AuthorizationRequestService
                 );
             }
 
-            $pendingStatusId =
-                $this->approvalStatusId(
-                    'pending'
-                );
+            $pendingStatusId = $this->approvalStatusId(
+                'pending'
+            );
 
-            $supersedesRequestId =
-                $this->latestChangesRequestedId(
-                    $ticketId
-                );
+            $supersedesRequestId = $this->latestChangesRequestedId(
+                $ticketId
+            );
 
             $insertRequest = $this->pdo->prepare(
                 'INSERT INTO ticket_approval_requests (
@@ -293,29 +265,23 @@ final class AuthorizationRequestService
                 'ticket_id' => $ticketId,
                 'quotation_id' => $quotationId,
                 'status_id' => $pendingStatusId,
-                'requested_by_user_id' =>
-                    $actorId,
-                'approver_user_id' =>
-                    $approverId,
-                'supersedes_request_id' =>
-                    $supersedesRequestId,
-                'request_comment' =>
-                    $comment,
-                'requested_amount' =>
-                    number_format(
-                        $requestedAmount,
-                        2,
-                        '.',
-                        ''
-                    ),
+                'requested_by_user_id' => $actorId,
+                'approver_user_id' => $approverId,
+                'supersedes_request_id' => $supersedesRequestId,
+                'request_comment' => $comment,
+                'requested_amount' => number_format(
+                    $requestedAmount,
+                    2,
+                    '.',
+                    ''
+                ),
             ]);
 
-            $approvalRequestId =
-                (int) $this->pdo->lastInsertId();
+            $approvalRequestId = (int) $this->pdo->lastInsertId();
 
-            $previousDirectorId =
-                $ticket['director_user_id'] !== null
-                    ? (int) $ticket['director_user_id']
+            $previousApproverId =
+                $ticket['approver_user_id'] !== null
+                    ? (int) $ticket['approver_user_id']
                     : null;
 
             $previousOwnerId =
@@ -325,7 +291,7 @@ final class AuthorizationRequestService
 
             $updateTicket = $this->pdo->prepare(
                 'UPDATE tickets
-                 SET director_user_id = :director_user_id,
+                 SET approver_user_id = :approver_user_id,
                      action_owner_user_id = :action_owner_user_id,
                      current_status_id = :to_status_id,
                      row_version = row_version + 1,
@@ -336,23 +302,15 @@ final class AuthorizationRequestService
             );
 
             $updateTicket->execute([
-                'director_user_id' =>
-                    $approverId,
-                'action_owner_user_id' =>
-                    $approverId,
-                'to_status_id' =>
-                    (int) $transition['to_status_id'],
+                'approver_user_id' => $approverId,
+                'action_owner_user_id' => $approverId,
+                'to_status_id' => (int) $transition['to_status_id'],
                 'id' => $ticketId,
-                'from_status_id' =>
-                    (int) $ticket['current_status_id'],
-                'row_version' =>
-                    $rowVersion,
+                'from_status_id' => (int) $ticket['current_status_id'],
+                'row_version' => $rowVersion,
             ]);
 
-            if (
-                $updateTicket->rowCount()
-                !== 1
-            ) {
+            if ($updateTicket->rowCount() !== 1) {
                 throw new HttpException(
                     409,
                     'ticket_changed',
@@ -360,53 +318,42 @@ final class AuthorizationRequestService
                 );
             }
 
-            if (
-                $previousDirectorId
-                !== $approverId
-            ) {
+            if ($previousApproverId !== $approverId) {
                 $this->insertAssignmentHistory(
                     $ticketId,
-                    'director',
-                    $previousDirectorId,
+                    'approver',
+                    $previousApproverId,
                     $approverId,
                     $actorId,
-                    'Asignación de Dirección al solicitar autorización.'
+                    'Asignación de Approver al solicitar autorización.'
                 );
             }
 
-            if (
-                $previousOwnerId
-                !== $approverId
-            ) {
+            if ($previousOwnerId !== $approverId) {
                 $this->insertAssignmentHistory(
                     $ticketId,
                     'action_owner',
                     $previousOwnerId,
                     $approverId,
                     $actorId,
-                    'Dirección queda responsable de revisar la solicitud de autorización.'
+                    'El Approver queda responsable de revisar la solicitud de autorización.'
                 );
             }
 
             $metadata = json_encode(
                 [
-                    'request_id' =>
-                        $requestId,
-                    'approval_request_id' =>
-                        $approvalRequestId,
-                    'quotation_id' =>
-                        $quotationId,
+                    'request_id' => $requestId,
+                    'approval_request_id' => $approvalRequestId,
+                    'quotation_id' => $quotationId,
                     'quotation_version' =>
                         (int) $quotation['version_number'],
-                    'requested_amount' =>
-                        number_format(
-                            $requestedAmount,
-                            2,
-                            '.',
-                            ''
-                        ),
-                    'approver_user_id' =>
-                        $approverId,
+                    'requested_amount' => number_format(
+                        $requestedAmount,
+                        2,
+                        '.',
+                        ''
+                    ),
+                    'approver_user_id' => $approverId,
                     'supersedes_request_id' =>
                         $supersedesRequestId,
                 ],
@@ -441,8 +388,7 @@ final class AuthorizationRequestService
                     (int) $ticket['current_status_id'],
                 'to_status_id' =>
                     (int) $transition['to_status_id'],
-                'changed_by_user_id' =>
-                    $actorId,
+                'changed_by_user_id' => $actorId,
                 'comment' => $comment,
                 'metadata_json' => $metadata,
             ]);
@@ -467,8 +413,7 @@ final class AuthorizationRequestService
                     )
                 );
 
-                $directorRecipient =
-                    $director;
+                $approverRecipient = $approver;
             }
 
             $this->audit->record(
@@ -480,8 +425,8 @@ final class AuthorizationRequestService
                 [
                     'status_code' =>
                         (string) $ticket['status_code'],
-                    'director_user_id' =>
-                        $previousDirectorId,
+                    'approver_user_id' =>
+                        $previousApproverId,
                     'action_owner_user_id' =>
                         $previousOwnerId,
                     'row_version' =>
@@ -494,13 +439,12 @@ final class AuthorizationRequestService
                         $quotationId,
                     'quotation_version' =>
                         (int) $quotation['version_number'],
-                    'requested_amount' =>
-                        number_format(
-                            $requestedAmount,
-                            2,
-                            '.',
-                            ''
-                        ),
+                    'requested_amount' => number_format(
+                        $requestedAmount,
+                        2,
+                        '.',
+                        ''
+                    ),
                     'approver_user_id' =>
                         $approverId,
                     'status_code' =>
@@ -522,14 +466,14 @@ final class AuthorizationRequestService
             throw $exception;
         }
 
-        if (is_array($directorRecipient)) {
+        if (is_array($approverRecipient)) {
             try {
                 $this->mailer
-                    ->sendAuthorizationRequestToDirector(
+                    ->sendAuthorizationRequestToApprover(
                         $ticketId,
-                        (int) $directorRecipient['id'],
-                        (string) $directorRecipient['email'],
-                        (string) $directorRecipient['full_name'],
+                        (int) $approverRecipient['id'],
+                        (string) $approverRecipient['email'],
+                        (string) $approverRecipient['full_name'],
                         (string) $user['full_name'],
                         (string) $ticket['folio'],
                         (string) $ticket['title'],
@@ -553,21 +497,17 @@ final class AuthorizationRequestService
                     [
                         'ticket_id' => $ticketId,
                         'recipient_user_id' =>
-                            (int) $directorRecipient['id'],
+                            (int) $approverRecipient['id'],
                     ]
                 );
             }
         }
 
         return [
-            'approval_request_id' =>
-                $approvalRequestId,
-            'quotation_id' =>
-                $quotationId,
-            'approver_user_id' =>
-                $approverId,
-            'row_version' =>
-                $rowVersion + 1,
+            'approval_request_id' => $approvalRequestId,
+            'quotation_id' => $quotationId,
+            'approver_user_id' => $approverId,
+            'row_version' => $rowVersion + 1,
         ];
     }
 
@@ -629,10 +569,8 @@ final class AuthorizationRequestService
         );
 
         $statement->execute([
-            'quotation_id' =>
-                $quotationId,
-            'ticket_id' =>
-                $ticketId,
+            'quotation_id' => $quotationId,
+            'ticket_id' => $ticketId,
         ]);
 
         $row = $statement->fetch();
@@ -643,7 +581,7 @@ final class AuthorizationRequestService
     }
 
     /** @return array<string, mixed>|null */
-    private function loadEligibleDirector(
+    private function loadEligibleApprover(
         int $userId,
         int $locationId
     ): ?array {
@@ -665,7 +603,7 @@ final class AuthorizationRequestService
                 ON r.id = mag.role_id
                AND r.application_id = mag.application_id
                AND r.is_active = 1
-               AND r.code = 'director'
+               AND r.code = 'approver'
              INNER JOIN users u
                 ON u.id = mag.user_id
                AND u.status = 'active'
@@ -708,40 +646,6 @@ final class AuthorizationRequestService
         ];
     }
 
-    /** @return array<string, mixed>|null */
-    private function loadActiveUser(
-        int $userId
-    ): ?array {
-        $statement = $this->pdo->prepare(
-            'SELECT
-                id,
-                CONCAT_WS(" ", first_name, last_name) AS full_name,
-                email
-             FROM users
-             WHERE id = :id
-               AND status = \'active\'
-             LIMIT 1'
-        );
-
-        $statement->execute([
-            'id' => $userId,
-        ]);
-
-        $row = $statement->fetch();
-
-        if (!is_array($row)) {
-            return null;
-        }
-
-        return [
-            'id' => (int) $row['id'],
-            'full_name' => trim(
-                (string) $row['full_name']
-            ),
-            'email' => (string) $row['email'],
-        ];
-    }
-
     private function hasPendingApprovalRequest(
         int $ticketId
     ): bool {
@@ -760,8 +664,7 @@ final class AuthorizationRequestService
             'ticket_id' => $ticketId,
         ]);
 
-        return $statement->fetchColumn()
-            !== false;
+        return $statement->fetchColumn() !== false;
     }
 
     private function latestChangesRequestedId(
@@ -967,21 +870,21 @@ final class AuthorizationRequestService
      * @param array<string, mixed> $user
      * @param array<string, mixed> $ticket
      */
-    private function assertSupervisorControl(
+    private function assertOperatorControl(
         array $user,
         array $ticket
     ): void {
         if (
             !AuthorizationService::hasRoleAtLocation(
                 $user,
-                'supervisor',
+                'operator',
                 (int) ($ticket['location_id'] ?? 0)
             )
         ) {
             throw new HttpException(
                 403,
-                'supervisor_role_required',
-                'Esta acción corresponde al perfil Supervisor.'
+                'operator_role_required',
+                'Esta acción corresponde al perfil Operator.'
             );
         }
 
@@ -990,14 +893,14 @@ final class AuthorizationRequestService
         if (
             $userId < 1
             || $userId
-                !== (int) ($ticket['supervisor_user_id'] ?? 0)
+                !== (int) ($ticket['operator_user_id'] ?? 0)
             || $userId
                 !== (int) ($ticket['action_owner_user_id'] ?? 0)
         ) {
             throw new HttpException(
                 403,
-                'supervisor_action_required',
-                'Solo el supervisor responsable puede solicitar la autorización del ticket.'
+                'operator_action_required',
+                'Solo el Operator responsable puede solicitar la autorización del ticket.'
             );
         }
     }
@@ -1013,8 +916,7 @@ final class AuthorizationRequestService
             )
             ?? trim($value);
 
-        $length =
-            $this->textLength($value);
+        $length = $this->textLength($value);
 
         if ($length < 5) {
             throw new HttpException(
@@ -1024,10 +926,7 @@ final class AuthorizationRequestService
             );
         }
 
-        if (
-            $length
-            > self::MAX_COMMENT_LENGTH
-        ) {
+        if ($length > self::MAX_COMMENT_LENGTH) {
             throw new HttpException(
                 422,
                 'request_comment_too_long',
@@ -1049,10 +948,7 @@ final class AuthorizationRequestService
             )
         );
 
-        if (
-            $value === ''
-            || !is_numeric($value)
-        ) {
+        if ($value === '' || !is_numeric($value)) {
             throw new HttpException(
                 422,
                 'requested_amount_invalid',

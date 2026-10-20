@@ -105,7 +105,7 @@ function renderTicket(data) {
   renderActions(data.capabilities?.allowed_transitions || []);
   renderGallery(data.attachments || []);
   renderQuotations(data.quotations || [], data.capabilities || {}, ticket);
-  renderApprovals(data.approval_requests || [], data.eligible_directors || [], data.capabilities || {}, ticket);
+  renderApprovals(data.approval_requests || [], data.eligible_approvers || [], data.capabilities || {}, ticket);
   renderCompletion(data.completion_evidence || [], data.capabilities || {}, ticket);
   renderComments(data.comments || [], Boolean(data.capabilities?.can_comment));
   renderTimeline(data.status_history || [], data.assignment_history || []);
@@ -479,7 +479,7 @@ function createQuotationFileActions(quotation, compact = false) {
   return wrapper;
 }
 
-function renderApprovals(requests, directors, capabilities, ticket) {
+function renderApprovals(requests, approvers, capabilities, ticket) {
   const panel = document.querySelector('[data-approval-panel]');
   const count = document.querySelector('[data-approvals-count]');
   const currentContainer = document.querySelector('[data-current-approval]');
@@ -509,7 +509,7 @@ function renderApprovals(requests, directors, capabilities, ticket) {
 
   requestContainer.hidden = !canRequest;
   if (canRequest && approvalForm) {
-    configureApprovalForm(currentQuotation, directors);
+    configureApprovalForm(currentQuotation, approvers);
     if (!approvalForm.dataset.initialized) {
       approvalForm.dataset.initialized = 'true';
       approvalForm.addEventListener('submit', submitAuthorizationRequest);
@@ -531,10 +531,10 @@ function renderApprovals(requests, directors, capabilities, ticket) {
   }
 }
 
-function configureApprovalForm(quotation, directors) {
-  const select = document.querySelector('[data-approval-director-select]');
+function configureApprovalForm(quotation, approvers) {
+  const select = document.querySelector('[data-approval-approver-select]');
   const amount = document.querySelector('[data-approval-amount]');
-  const help = document.querySelector('[data-approval-director-help]');
+  const help = document.querySelector('[data-approval-approver-help]');
   const reference = document.querySelector('[data-approval-quotation-reference]');
   const submit = document.querySelector('[data-approval-submit]');
   if (!select || !amount || !reference || !submit) return;
@@ -543,16 +543,16 @@ function configureApprovalForm(quotation, directors) {
   select.replaceChildren();
   const placeholder = document.createElement('option');
   placeholder.value = '';
-  placeholder.textContent = directors.length > 0 ? 'Selecciona una persona' : 'No hay responsables disponibles';
+  placeholder.textContent = approvers.length > 0 ? 'Selecciona una persona' : 'No hay responsables disponibles';
   select.append(placeholder);
 
-  directors.forEach((director) => {
+  approvers.forEach((approver) => {
     const option = document.createElement('option');
-    option.value = String(director.id);
-    option.textContent = `${director.full_name} · ${director.email}`;
+    option.value = String(approver.id);
+    option.textContent = `${approver.full_name} · ${approver.email}`;
     select.append(option);
   });
-  if (directors.some((director) => String(director.id) === previousSelection)) {
+  if (approvers.some((approver) => String(approver.id) === previousSelection)) {
     select.value = previousSelection;
   }
 
@@ -568,13 +568,13 @@ function configureApprovalForm(quotation, directors) {
   total.textContent = formatMoney(quotation.amount, quotation.currency);
   reference.append(label, supplier, total);
 
-  const hasDirectors = directors.length > 0;
-  select.disabled = !hasDirectors;
-  submit.disabled = !hasDirectors;
+  const hasApprovers = approvers.length > 0;
+  select.disabled = !hasApprovers;
+  submit.disabled = !hasApprovers;
   if (help) {
-    help.textContent = hasDirectors
-      ? 'Solo usuarios activos con rol Dirección.'
-      : 'No hay usuarios activos con rol Dirección. Asigna ese rol antes de enviar la solicitud.';
+    help.textContent = hasApprovers
+      ? 'Solo usuarios activos con perfil Approver en esta ubicación.'
+      : 'No hay usuarios activos con perfil Approver. Asigna ese perfil antes de enviar la solicitud.';
   }
 }
 
@@ -599,7 +599,7 @@ function createApprovalCard(request, capabilities, ticket) {
   const facts = document.createElement('dl');
   facts.className = 'approval-card__facts';
   facts.append(
-    createApprovalFact('Dirección', request.approver?.full_name || 'Sin asignar'),
+    createApprovalFact('Approver', request.approver?.full_name || 'Sin asignar'),
     createApprovalFact('Solicitada por', request.requested_by?.full_name || 'Usuario'),
     createApprovalFact('Fecha de solicitud', formatDateTime(request.requested_at)),
     createApprovalFact('Cotización', `Versión ${request.quotation.version_number}`),
@@ -622,7 +622,7 @@ function createApprovalCard(request, capabilities, ticket) {
     const decision = document.createElement('div');
     decision.className = 'approval-card__comment approval-card__comment--decision';
     const decisionTitle = document.createElement('strong');
-    decisionTitle.textContent = 'Decisión de Dirección';
+    decisionTitle.textContent = 'Decisión del Approver';
     const decisionBody = document.createElement('p');
     decisionBody.textContent = request.decision_comment;
     decision.append(decisionTitle, decisionBody);
@@ -696,13 +696,13 @@ async function decideAuthorization(request, decision, button) {
       title: 'Autorizar solicitud',
       confirm: 'Autorizar',
       success: 'Solicitud autorizada',
-      message: 'El supervisor recuperó la responsabilidad para iniciar la ejecución.',
+      message: 'El Operator recuperó la responsabilidad para iniciar la ejecución.',
     },
     changes_requested: {
       title: 'Solicitar cambios',
       confirm: 'Solicitar cambios',
       success: 'Cambios solicitados',
-      message: 'El supervisor recuperó la responsabilidad para preparar una nueva propuesta.',
+      message: 'El Operator recuperó la responsabilidad para preparar una nueva propuesta.',
     },
     rejected: {
       title: 'Rechazar solicitud',
@@ -723,11 +723,11 @@ async function decideAuthorization(request, decision, button) {
       icon: 'question',
       title: config.title,
       html: `
-        <div class="director-decision-modal">
-          <label for="director-approved-amount">Importe autorizado</label>
-          <input id="director-approved-amount" class="swal2-input" type="number" min="0.01" max="${requestedAmount.toFixed(2)}" step="0.01" value="${requestedAmount.toFixed(2)}">
-          <label for="director-decision-comment">Comentario de Dirección</label>
-          <textarea id="director-decision-comment" class="swal2-textarea" maxlength="5000" placeholder="Explica la decisión y cualquier condición relevante."></textarea>
+        <div class="approver-decision-modal">
+          <label for="approver-approved-amount">Importe autorizado</label>
+          <input id="approver-approved-amount" class="swal2-input" type="number" min="0.01" max="${requestedAmount.toFixed(2)}" step="0.01" value="${requestedAmount.toFixed(2)}">
+          <label for="approver-decision-comment">Comentario del Approver</label>
+          <textarea id="approver-decision-comment" class="swal2-textarea" maxlength="5000" placeholder="Explica la decisión y cualquier condición relevante."></textarea>
         </div>`,
       showCancelButton: true,
       confirmButtonText: config.confirm,
@@ -735,8 +735,8 @@ async function decideAuthorization(request, decision, button) {
       reverseButtons: true,
       customClass: { popup: 'app-alert', confirmButton: 'app-alert__confirm' },
       preConfirm: () => {
-        const amount = Number(document.getElementById('director-approved-amount')?.value || 0);
-        const comment = String(document.getElementById('director-decision-comment')?.value || '').trim();
+        const amount = Number(document.getElementById('approver-approved-amount')?.value || 0);
+        const comment = String(document.getElementById('approver-decision-comment')?.value || '').trim();
         if (!Number.isFinite(amount) || amount <= 0 || amount > requestedAmount) {
           window.Swal.showValidationMessage('El importe autorizado debe ser mayor a cero y no puede exceder el solicitado.');
           return false;
@@ -756,7 +756,7 @@ async function decideAuthorization(request, decision, button) {
       icon: decision === 'rejected' ? 'warning' : 'question',
       title: config.title,
       input: 'textarea',
-      inputLabel: 'Comentario de Dirección',
+      inputLabel: 'Comentario del Approver',
       inputPlaceholder: decision === 'changes_requested'
         ? 'Indica claramente qué debe corregirse antes de volver a solicitar autorización…'
         : 'Explica el motivo del rechazo…',
@@ -847,20 +847,20 @@ async function submitAuthorizationRequest(event) {
   const currentQuotation = (detail.quotations || []).find((quotation) => quotation.is_current) || null;
   if (!currentQuotation) return;
 
-  const directorSelect = approvalForm.querySelector('[name="approver_user_id"]');
-  const selectedDirector = (detail.eligible_directors || []).find(
-    (director) => String(director.id) === String(directorSelect?.value || ''),
+  const approverSelect = approvalForm.querySelector('[name="approver_user_id"]');
+  const selectedApprover = (detail.eligible_approvers || []).find(
+    (approver) => String(approver.id) === String(approverSelect?.value || ''),
   );
-  if (!selectedDirector) {
-    setMessage(document.querySelector('[data-approval-message]'), 'Selecciona al responsable de Dirección.', 'error');
+  if (!selectedApprover) {
+    setMessage(document.querySelector('[data-approval-message]'), 'Selecciona al Approver responsable.', 'error');
     return;
   }
 
   if (window.Swal) {
     const confirmation = await window.Swal.fire({
       icon: 'question',
-      title: 'Enviar a Dirección',
-      html: `La cotización <strong>versión ${currentQuotation.version_number}</strong> será enviada a <strong>${escapeHtml(selectedDirector.full_name)}</strong>. El ticket cambiará a <strong>Pendiente de autorización</strong>.`,
+      title: 'Enviar a autorización',
+      html: `La cotización <strong>versión ${currentQuotation.version_number}</strong> será enviada a <strong>${escapeHtml(selectedApprover.full_name)}</strong>. El ticket cambiará a <strong>Pendiente de autorización</strong>.`,
       showCancelButton: true,
       confirmButtonText: 'Enviar solicitud',
       cancelButtonText: 'Cancelar',
@@ -875,7 +875,7 @@ async function submitAuthorizationRequest(event) {
   const formData = new FormData(approvalForm);
   button.disabled = true;
   button.classList.add('is-loading');
-  setMessage(message, 'Enviando solicitud a Dirección…');
+  setMessage(message, 'Enviando solicitud al Approver…');
 
   try {
     const response = await apiRequest('./api/tickets/request-authorization.php', {
@@ -895,7 +895,7 @@ async function submitAuthorizationRequest(event) {
     await window.Swal?.fire({
       icon: 'success',
       title: 'Solicitud enviada',
-      text: 'El ticket quedó pendiente de autorización y Dirección es ahora responsable de la siguiente acción.',
+      text: 'El ticket quedó pendiente de autorización y el Approver es ahora responsable de la siguiente acción.',
       confirmButtonText: 'Continuar',
       customClass: { popup: 'app-alert', confirmButton: 'app-alert__confirm' },
     });
@@ -1040,7 +1040,6 @@ async function submitCompletion(event) {
     button.classList.remove('is-loading');
   }
 }
-
 
 function formatMoney(amount, currency = 'MXN') {
   const value = Number(amount || 0);
@@ -1257,10 +1256,10 @@ function renderPeople(ticket, capabilities = {}) {
   if (!list) return;
   const people = [
     createPerson('Reportante', ticket.reporter),
-    createPerson('Supervisor', ticket.supervisor),
+    createPerson('Operator', ticket.operator),
   ];
   if (!capabilities.is_reporter_view) {
-    people.push(createPerson('Dirección', ticket.director));
+    people.push(createPerson('Approver', ticket.approver));
   }
   list.replaceChildren(...people);
 }
@@ -1315,38 +1314,38 @@ function renderNextAction(ticket, capabilities) {
     if (currentQuotation) {
       title.textContent = 'Cotización vigente cargada';
       copy.textContent = capabilities.can_request_authorization
-        ? `La versión ${currentQuotation.version_number} está lista para enviarse a Dirección.`
+        ? `La versión ${currentQuotation.version_number} está lista para enviarse a autorización.`
         : `La versión ${currentQuotation.version_number} está registrada como cotización vigente.`;
     } else {
       title.textContent = 'Preparar cotización';
-      copy.textContent = 'El supervisor debe obtener y cargar una cotización antes de solicitar autorización.';
+      copy.textContent = 'El Operator debe obtener y cargar una cotización antes de solicitar autorización.';
     }
   } else if (ticket.status.code === 'authorization_pending') {
     const currentRequest = (detail?.approval_requests || [])[0];
     const canDecide = Boolean(capabilities.can_authorize)
       || Boolean(capabilities.can_request_changes)
       || Boolean(capabilities.can_reject);
-    title.textContent = canDecide ? 'Revisar solicitud' : (ticket.director?.full_name || 'Dirección');
+    title.textContent = canDecide ? 'Revisar solicitud' : (ticket.approver?.full_name || 'Approver');
     copy.textContent = currentRequest
       ? (canDecide
         ? `La solicitud ${currentRequest.display_number || currentRequest.id} requiere tu decisión.`
-        : `La solicitud ${currentRequest.display_number || currentRequest.id} está pendiente de revisión por Dirección.`)
-      : 'El ticket está pendiente de autorización por Dirección.';
+        : `La solicitud ${currentRequest.display_number || currentRequest.id} está pendiente de revisión por el Approver.`)
+      : 'El ticket está pendiente de autorización por el Approver.';
   } else if (ticket.status.code === 'authorized') {
-    title.textContent = ticket.action_owner?.full_name || ticket.supervisor?.full_name || 'Supervisor';
-    copy.textContent = 'La reparación fue autorizada. El supervisor debe iniciar la ejecución.';
+    title.textContent = ticket.action_owner?.full_name || ticket.operator?.full_name || 'Operator';
+    copy.textContent = 'La reparación fue autorizada. El Operator debe iniciar la ejecución.';
   } else if (ticket.status.code === 'changes_requested') {
-    title.textContent = ticket.action_owner?.full_name || ticket.supervisor?.full_name || 'Supervisor';
-    copy.textContent = 'Dirección solicitó cambios. El supervisor debe preparar una nueva propuesta.';
+    title.textContent = ticket.action_owner?.full_name || ticket.operator?.full_name || 'Operator';
+    copy.textContent = 'El Approver solicitó cambios. El Operator debe preparar una nueva propuesta.';
   } else if (ticket.status.code === 'in_progress') {
-    title.textContent = ticket.action_owner?.full_name || 'Supervisor responsable';
+    title.textContent = ticket.action_owner?.full_name || 'Operator responsable';
     copy.textContent = capabilities.can_complete_work
       ? 'El trabajo está en ejecución. Registra la solución y las evidencias finales cuando haya terminado.'
       : (ticket.processing_route === 'direct'
         ? 'La reparación se encuentra en ejecución mediante atención directa.'
         : 'La reparación autorizada se encuentra en ejecución.');
   } else if (ticket.status.code === 'completed') {
-    title.textContent = ticket.action_owner?.full_name || ticket.supervisor?.full_name || 'Supervisor';
+    title.textContent = ticket.action_owner?.full_name || ticket.operator?.full_name || 'Operator';
     copy.textContent = 'El trabajo fue terminado y documentado. El ticket queda pendiente de cierre.';
   } else if (ticket.action_owner) {
     title.textContent = ticket.action_owner.full_name;
@@ -1391,7 +1390,7 @@ function renderNextAction(ticket, capabilities) {
       request.addEventListener('click', () => {
         const panel = document.querySelector('[data-approval-panel]');
         panel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        document.querySelector('[data-approval-director-select]')?.focus({ preventScroll: true });
+        document.querySelector('[data-approval-approver-select]')?.focus({ preventScroll: true });
       });
       actions.append(request);
       container.append(actions);
@@ -1414,7 +1413,6 @@ function renderNextAction(ticket, capabilities) {
     actions.append(revise);
     container.append(actions);
   }
-
 
   if (ticket.status.code === 'authorized' && capabilities.can_start_execution) {
     const actions = document.createElement('div');
@@ -1516,8 +1514,8 @@ async function selectProcessingRoute(processingRoute, button) {
     icon: 'question',
     title: isDirect ? 'Atender directamente' : 'Solicitar cotización',
     text: isDirect
-      ? 'El ticket pasará a En proceso sin requerir autorización de Dirección.'
-      : 'El ticket pasará a Cotización pendiente. Todavía no se enviará a Dirección.',
+      ? 'El ticket pasará a En proceso sin requerir autorización del Approver.'
+      : 'El ticket pasará a Cotización pendiente. Todavía no se enviará al Approver.',
     input: 'textarea',
     inputLabel: isDirect ? 'Plan de atención *' : 'Motivo o alcance',
     inputPlaceholder: isDirect
@@ -1634,7 +1632,7 @@ function dateValue(value) {
 }
 
 function assignmentLabel(type) {
-  return ({ supervisor: 'el supervisor', director: 'el responsable de Dirección', action_owner: 'el responsable de la acción' })[type] || 'un responsable';
+  return ({ operator: 'el Operator', approver: 'el Approver', action_owner: 'el responsable de la acción' })[type] || 'un responsable';
 }
 
 function handleAuthError(error) {

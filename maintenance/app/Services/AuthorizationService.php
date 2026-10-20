@@ -319,8 +319,8 @@ final class AuthorizationService
             && in_array(
                 $userId,
                 [
-                    (int) ($ticket['supervisor_user_id'] ?? 0),
-                    (int) ($ticket['director_user_id'] ?? 0),
+                    (int) ($ticket['operator_user_id'] ?? 0),
+                    (int) ($ticket['approver_user_id'] ?? 0),
                     (int) ($ticket['action_owner_user_id'] ?? 0),
                 ],
                 true
@@ -389,7 +389,7 @@ final class AuthorizationService
      * Builds a SQL predicate equivalent to canViewTicket().
      *
      * It is intended for ticket collections such as Dashboard and
-     * SupervisorService.
+     * OperatorService.
      *
      * @param array<string, mixed> $user
      * @return array{0:string,1:array<string, int|string>}
@@ -483,21 +483,21 @@ final class AuthorizationService
             int $userId,
             array &$params
         ): string {
-            $supervisor = $prefix . '_supervisor';
-            $director = $prefix . '_director';
+            $operator = $prefix . '_operator';
+            $approver = $prefix . '_approver';
             $owner = $prefix . '_owner';
 
-            $params[$supervisor] = $userId;
-            $params[$director] = $userId;
+            $params[$operator] = $userId;
+            $params[$approver] = $userId;
             $params[$owner] = $userId;
 
             return sprintf(
-                '(%1$s.supervisor_user_id = :%2$s'
-                . ' OR %1$s.director_user_id = :%3$s'
+                '(%1$s.operator_user_id = :%2$s'
+                . ' OR %1$s.approver_user_id = :%3$s'
                 . ' OR %1$s.action_owner_user_id = :%4$s)',
                 $alias,
-                $supervisor,
-                $director,
+                $operator,
+                $approver,
                 $owner
             );
         };

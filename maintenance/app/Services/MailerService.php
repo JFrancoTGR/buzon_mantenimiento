@@ -79,7 +79,7 @@ final class MailerService
   <tr><td style="padding:8px 0;color:#5f6b76;">Zona</td><td style="padding:8px 0;">{$safeSpecificLocation}</td></tr>
   <tr><td style="padding:8px 0;color:#5f6b76;">Prioridad</td><td style="padding:8px 0;">{$safePriority}</td></tr>
 </table>
-<p>El supervisor responsable recibió una notificación para revisar el caso.</p>
+<p>El Operator responsable recibió una notificación para revisar el caso.</p>
 <p style="margin:28px 0;"><a href="{$safeTicketUrl}" style="display:inline-block;background:#c31422;color:#ffffff;text-decoration:none;font-weight:700;padding:13px 18px;">Ir a la plataforma</a></p>
 HTML
         );
@@ -91,6 +91,7 @@ HTML
             . "Ubicación: {$locationName}\n"
             . "Zona: {$specificLocation}\n"
             . "Prioridad: {$priorityName}\n\n"
+            . "El Operator responsable recibió una notificación para revisar el caso.\n\n"
             . "Consulta la plataforma en: {$ticketUrl}";
 
         $this->sendAndLog(
@@ -105,7 +106,7 @@ HTML
         );
     }
 
-    public function sendTicketCreatedToSupervisor(
+    public function sendTicketCreatedToOperator(
         int $ticketId,
         int $recipientUserId,
         string $recipientEmail,
@@ -164,7 +165,7 @@ HTML
             $recipientUserId,
             $recipientEmail,
             $recipientName,
-            'ticket.created.supervisor_notification',
+            'ticket.created.operator_notification',
             $subject,
             $html,
             $text
@@ -240,7 +241,9 @@ HTML
         $safeTitle = self::escape($title);
         $safeStatus = self::escape($statusName);
         $commentHtml = $comment !== null && trim($comment) !== ''
-            ? '<div style="padding:16px;border-left:4px solid #c31422;background:#f6f8fa;line-height:1.55;">' . nl2br(self::escape($comment)) . '</div>'
+            ? '<div style="padding:16px;border-left:4px solid #c31422;background:#f6f8fa;line-height:1.55;">'
+                . nl2br(self::escape($comment))
+                . '</div>'
             : '';
         $subject = "Actualización de {$folio}: {$statusName}";
 
@@ -262,7 +265,11 @@ HTML
             . "{$actorName} actualizó el reporte {$folio}.\n"
             . "Reporte: {$title}\n"
             . "Nuevo estado: {$statusName}\n"
-            . ($comment !== null && trim($comment) !== '' ? "Comentario: {$comment}\n" : '')
+            . (
+                $comment !== null && trim($comment) !== ''
+                    ? "Comentario: {$comment}\n"
+                    : ''
+            )
             . "\nConsulta el ticket en: {$ticketUrl}";
 
         $this->sendAndLog(
@@ -277,7 +284,7 @@ HTML
         );
     }
 
-    public function sendAuthorizationRequestToDirector(
+    public function sendAuthorizationRequestToApprover(
         int $ticketId,
         int $recipientUserId,
         string $recipientEmail,
@@ -345,7 +352,7 @@ HTML
         int $recipientUserId,
         string $recipientEmail,
         string $recipientName,
-        string $directorName,
+        string $approverName,
         string $folio,
         string $title,
         string $decision,
@@ -358,40 +365,65 @@ HTML
         $ticketUrl = $appUrl . '/maintenance/ticket.html?id=' . $ticketId;
         $safeTicketUrl = self::escape($ticketUrl);
         $safeName = self::escape($recipientName);
-        $safeDirector = self::escape($directorName);
+        $safeApprover = self::escape($approverName);
         $safeFolio = self::escape($folio);
         $safeTitle = self::escape($title);
         $safeCurrency = self::escape($currency);
         $safeComment = nl2br(self::escape($decisionComment));
-        $requested = number_format((float) $requestedAmount, 2, '.', ',');
-        $approved = $approvedAmount !== null ? number_format((float) $approvedAmount, 2, '.', ',') : null;
+        $requested = number_format(
+            (float) $requestedAmount,
+            2,
+            '.',
+            ','
+        );
+        $approved = $approvedAmount !== null
+            ? number_format(
+                (float) $approvedAmount,
+                2,
+                '.',
+                ','
+            )
+            : null;
 
         $decisionData = match ($decision) {
             'approved' => [
                 'heading' => 'Solicitud autorizada',
                 'subject' => "Autorización aprobada: {$folio}",
-                'summary' => "{$safeDirector} autorizó la solicitud de mantenimiento.",
+                'summary' =>
+                    "{$safeApprover} autorizó la solicitud de mantenimiento.",
                 'event' => 'ticket.authorization.approved',
             ],
             'changes_requested' => [
                 'heading' => 'Cambios solicitados',
                 'subject' => "Cambios solicitados: {$folio}",
-                'summary' => "{$safeDirector} solicitó cambios a la propuesta antes de autorizarla.",
-                'event' => 'ticket.authorization.changes_requested',
+                'summary' =>
+                    "{$safeApprover} solicitó cambios a la propuesta antes de autorizarla.",
+                'event' =>
+                    'ticket.authorization.changes_requested',
             ],
             default => [
                 'heading' => 'Solicitud rechazada',
                 'subject' => "Autorización rechazada: {$folio}",
-                'summary' => "{$safeDirector} rechazó la solicitud de autorización.",
+                'summary' =>
+                    "{$safeApprover} rechazó la solicitud de autorización.",
                 'event' => 'ticket.authorization.rejected',
             ],
         };
 
-        $amountRows = '<tr><td style="padding:8px 0;color:#5f6b76;width:180px;">Importe solicitado</td><td style="padding:8px 0;font-weight:700;">$'
-            . self::escape($requested) . ' ' . $safeCurrency . '</td></tr>';
+        $amountRows =
+            '<tr><td style="padding:8px 0;color:#5f6b76;width:180px;">Importe solicitado</td><td style="padding:8px 0;font-weight:700;">$'
+            . self::escape($requested)
+            . ' '
+            . $safeCurrency
+            . '</td></tr>';
+
         if ($approved !== null) {
-            $amountRows .= '<tr><td style="padding:8px 0;color:#5f6b76;">Importe autorizado</td><td style="padding:8px 0;font-weight:700;">$'
-                . self::escape($approved) . ' ' . $safeCurrency . '</td></tr>';
+            $amountRows .=
+                '<tr><td style="padding:8px 0;color:#5f6b76;">Importe autorizado</td><td style="padding:8px 0;font-weight:700;">$'
+                . self::escape($approved)
+                . ' '
+                . $safeCurrency
+                . '</td></tr>';
         }
 
         $html = self::emailShell(
@@ -414,12 +446,21 @@ HTML
             'changes_requested' => 'Cambios solicitados',
             default => 'Rechazada',
         };
+
         $text = "Hola {$recipientName},\n\n"
             . "Decisión: {$decisionText}\n"
-            . "Dirección: {$directorName}\n"
+            . "Approver: {$approverName}\n"
             . "Reporte: {$folio} · {$title}\n"
-            . "Importe solicitado: $" . $requested . " {$currency}\n"
-            . ($approved !== null ? "Importe autorizado: $" . $approved . " {$currency}\n" : '')
+            . "Importe solicitado: $"
+            . $requested
+            . " {$currency}\n"
+            . (
+                $approved !== null
+                    ? "Importe autorizado: $"
+                        . $approved
+                        . " {$currency}\n"
+                    : ''
+            )
             . "Comentario: {$decisionComment}\n\n"
             . "Consulta el ticket en: {$ticketUrl}";
 
@@ -435,10 +476,13 @@ HTML
         );
     }
 
-    public function sendTestEmail(string $recipientEmail): void
-    {
+    public function sendTestEmail(
+        string $recipientEmail
+    ): void {
         if (!filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
-            throw new RuntimeException('El correo de prueba no es válido.');
+            throw new RuntimeException(
+                'El correo de prueba no es válido.'
+            );
         }
 
         $this->sendAndLog(
@@ -465,13 +509,32 @@ HTML
     ): void {
         try {
             $this->assertReady();
-            $transport = strtolower(Env::get('MAIL_TRANSPORT', 'smtp'));
+            $transport = strtolower(
+                Env::get('MAIL_TRANSPORT', 'smtp')
+            );
 
             match ($transport) {
-                'smtp' => $this->sendWithSmtp($recipientEmail, $recipientName, $subject, $htmlBody, $textBody),
-                'native' => $this->sendWithNativeMail($recipientEmail, $subject, $htmlBody),
-                'log' => $this->writeToLog($recipientEmail, $subject, $htmlBody, $textBody),
-                default => throw new RuntimeException('Transporte de correo no soportado.'),
+                'smtp' => $this->sendWithSmtp(
+                    $recipientEmail,
+                    $recipientName,
+                    $subject,
+                    $htmlBody,
+                    $textBody
+                ),
+                'native' => $this->sendWithNativeMail(
+                    $recipientEmail,
+                    $subject,
+                    $htmlBody
+                ),
+                'log' => $this->writeToLog(
+                    $recipientEmail,
+                    $subject,
+                    $htmlBody,
+                    $textBody
+                ),
+                default => throw new RuntimeException(
+                    'Transporte de correo no soportado.'
+                ),
             };
 
             $this->recordEmailLog(
@@ -491,9 +554,18 @@ HTML
                 $eventCode,
                 $subject,
                 'failed',
-                substr($exception->getMessage(), 0, 2000)
+                substr(
+                    $exception->getMessage(),
+                    0,
+                    2000
+                )
             );
-            throw new RuntimeException('No fue posible enviar el correo electrónico.', 0, $exception);
+
+            throw new RuntimeException(
+                'No fue posible enviar el correo electrónico.',
+                0,
+                $exception
+            );
         }
     }
 
@@ -508,32 +580,69 @@ HTML
         $mailer->CharSet = 'UTF-8';
         $mailer->isSMTP();
         $mailer->Host = Env::get('SMTP_HOST');
-        $mailer->Port = Env::int('SMTP_PORT', 587);
-        $mailer->SMTPAuth = Env::bool('SMTP_AUTH', true);
+        $mailer->Port = Env::int(
+            'SMTP_PORT',
+            587
+        );
+        $mailer->SMTPAuth = Env::bool(
+            'SMTP_AUTH',
+            true
+        );
 
         if ($mailer->SMTPAuth) {
             $mailer->Username = Env::get('SMTP_USERNAME');
             $mailer->Password = Env::get('SMTP_PASSWORD');
         }
 
-        $encryption = strtolower(Env::get('SMTP_ENCRYPTION', 'tls'));
+        $encryption = strtolower(
+            Env::get('SMTP_ENCRYPTION', 'tls')
+        );
+
         if (in_array($encryption, ['tls', 'starttls'], true)) {
-            $mailer->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        } elseif (in_array($encryption, ['ssl', 'smtps'], true)) {
-            $mailer->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
-        } elseif (in_array($encryption, ['none', ''], true)) {
+            $mailer->SMTPSecure =
+                PHPMailer::ENCRYPTION_STARTTLS;
+        } elseif (
+            in_array(
+                $encryption,
+                ['ssl', 'smtps'],
+                true
+            )
+        ) {
+            $mailer->SMTPSecure =
+                PHPMailer::ENCRYPTION_SMTPS;
+        } elseif (
+            in_array(
+                $encryption,
+                ['none', ''],
+                true
+            )
+        ) {
             $mailer->SMTPSecure = '';
             $mailer->SMTPAutoTLS = false;
         } else {
-            throw new RuntimeException('SMTP_ENCRYPTION debe ser tls, ssl o none.');
+            throw new RuntimeException(
+                'SMTP_ENCRYPTION debe ser tls, ssl o none.'
+            );
         }
 
-        $mailer->Timeout = Env::int('SMTP_TIMEOUT_SECONDS', 15);
+        $mailer->Timeout = Env::int(
+            'SMTP_TIMEOUT_SECONDS',
+            15
+        );
+
         $mailer->setFrom(
             Env::get('SMTP_FROM_ADDRESS'),
-            Env::get('SMTP_FROM_NAME', 'Plataforma de Mantenimiento')
+            Env::get(
+                'SMTP_FROM_NAME',
+                'Plataforma de Mantenimiento'
+            )
         );
-        $mailer->addAddress($recipientEmail, $recipientName);
+
+        $mailer->addAddress(
+            $recipientEmail,
+            $recipientName
+        );
+
         $mailer->isHTML(true);
         $mailer->Subject = $subject;
         $mailer->Body = $htmlBody;
@@ -541,10 +650,17 @@ HTML
         $mailer->send();
     }
 
-    private function sendWithNativeMail(string $recipientEmail, string $subject, string $htmlBody): void
-    {
+    private function sendWithNativeMail(
+        string $recipientEmail,
+        string $subject,
+        string $htmlBody
+    ): void {
         $fromAddress = Env::get('SMTP_FROM_ADDRESS');
-        $fromName = Env::get('SMTP_FROM_NAME', 'Plataforma de Mantenimiento');
+        $fromName = Env::get(
+            'SMTP_FROM_NAME',
+            'Plataforma de Mantenimiento'
+        );
+
         $headers = [
             'MIME-Version: 1.0',
             'Content-Type: text/html; charset=UTF-8',
@@ -552,12 +668,25 @@ HTML
             'Reply-To: ' . $fromAddress,
         ];
 
-        $encodedSubject = function_exists('mb_encode_mimeheader')
-            ? mb_encode_mimeheader($subject, 'UTF-8')
-            : $subject;
+        $encodedSubject =
+            function_exists('mb_encode_mimeheader')
+                ? mb_encode_mimeheader(
+                    $subject,
+                    'UTF-8'
+                )
+                : $subject;
 
-        if (!mail($recipientEmail, $encodedSubject, $htmlBody, implode("\r\n", $headers))) {
-            throw new RuntimeException('La función mail() devolvió un resultado fallido.');
+        if (
+            !mail(
+                $recipientEmail,
+                $encodedSubject,
+                $htmlBody,
+                implode("\r\n", $headers)
+            )
+        ) {
+            throw new RuntimeException(
+                'La función mail() devolvió un resultado fallido.'
+            );
         }
     }
 
@@ -567,10 +696,24 @@ HTML
         string $htmlBody,
         string $textBody
     ): void {
-        $logPath = dirname(__DIR__, 2) . '/storage/logs/mail.log';
+        $logPath =
+            dirname(__DIR__, 2)
+            . '/storage/logs/mail.log';
+
         $directory = dirname($logPath);
-        if (!is_dir($directory) && !mkdir($directory, 0770, true) && !is_dir($directory)) {
-            throw new RuntimeException('No fue posible crear el directorio de logs de correo.');
+
+        if (
+            !is_dir($directory)
+            && !mkdir(
+                $directory,
+                0770,
+                true
+            )
+            && !is_dir($directory)
+        ) {
+            throw new RuntimeException(
+                'No fue posible crear el directorio de logs de correo.'
+            );
         }
 
         $record = [
@@ -581,12 +724,22 @@ HTML
             'html' => $htmlBody,
         ];
 
-        if (file_put_contents(
-            $logPath,
-            json_encode($record, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL,
-            FILE_APPEND | LOCK_EX
-        ) === false) {
-            throw new RuntimeException('No fue posible escribir el correo en el log.');
+        if (
+            file_put_contents(
+                $logPath,
+                json_encode(
+                    $record,
+                    JSON_UNESCAPED_UNICODE
+                    | JSON_UNESCAPED_SLASHES
+                    | JSON_THROW_ON_ERROR
+                )
+                . PHP_EOL,
+                FILE_APPEND | LOCK_EX
+            ) === false
+        ) {
+            throw new RuntimeException(
+                'No fue posible escribir el correo en el log.'
+            );
         }
     }
 
@@ -602,14 +755,30 @@ HTML
         try {
             $statement = $this->pdo->prepare(
                 'INSERT INTO email_log (
-                    ticket_id, recipient_user_id, recipient_email, event_code,
-                    subject, status, error_message, sent_at
+                    ticket_id,
+                    recipient_user_id,
+                    recipient_email,
+                    event_code,
+                    subject,
+                    status,
+                    error_message,
+                    sent_at
                  ) VALUES (
-                    :ticket_id, :recipient_user_id, :recipient_email, :event_code,
-                    :subject, :status, :error_message,
-                    CASE WHEN :status_for_date = \'sent\' THEN UTC_TIMESTAMP() ELSE NULL END
+                    :ticket_id,
+                    :recipient_user_id,
+                    :recipient_email,
+                    :event_code,
+                    :subject,
+                    :status,
+                    :error_message,
+                    CASE
+                        WHEN :status_for_date = \'sent\'
+                        THEN UTC_TIMESTAMP()
+                        ELSE NULL
+                    END
                  )'
             );
+
             $statement->execute([
                 'ticket_id' => $ticketId,
                 'recipient_user_id' => $recipientUserId,
@@ -621,13 +790,19 @@ HTML
                 'status_for_date' => $status,
             ]);
         } catch (Throwable $exception) {
-            error_log('No fue posible registrar email_log: ' . $exception->getMessage());
+            error_log(
+                'No fue posible registrar email_log: '
+                . $exception->getMessage()
+            );
         }
     }
 
-    private static function emailShell(string $title, string $content): string
-    {
+    private static function emailShell(
+        string $title,
+        string $content
+    ): string {
         $safeTitle = self::escape($title);
+
         return <<<HTML
 <!doctype html>
 <html lang="es">
@@ -646,8 +821,13 @@ HTML
 HTML;
     }
 
-    private static function escape(string $value): string
-    {
-        return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    private static function escape(
+        string $value
+    ): string {
+        return htmlspecialchars(
+            $value,
+            ENT_QUOTES | ENT_SUBSTITUTE,
+            'UTF-8'
+        );
     }
 }

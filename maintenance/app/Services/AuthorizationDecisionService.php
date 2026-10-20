@@ -110,16 +110,16 @@ final class AuthorizationDecisionService
         $config = $decisionMap[$decision];
 
         $comment = $this->normalizeComment(
-            (string) (
-                $input['decision_comment']
-                ?? ''
-            )
+            (string) ($input['decision_comment'] ?? '')
         );
 
         $actorId = (int) ($user['id'] ?? 0);
         $requestId = Http::requestId();
         $approvedAmount = null;
         $recipients = [];
+
+        $ticket = null;
+        $approval = null;
 
         $this->pdo->beginTransaction();
 
@@ -133,8 +133,7 @@ final class AuthorizationDecisionService
                 $ticket
             );
 
-            $locationId =
-                (int) $ticket['location_id'];
+            $locationId = (int) $ticket['location_id'];
 
             AuthorizationService::requirePermission(
                 $user,
@@ -175,11 +174,10 @@ final class AuthorizationDecisionService
                 );
             }
 
-            $approval =
-                $this->loadPendingApprovalForUpdate(
-                    $ticketId,
-                    $approvalRequestId
-                );
+            $approval = $this->loadPendingApprovalForUpdate(
+                $ticketId,
+                $approvalRequestId
+            );
 
             if ($approval === null) {
                 throw new HttpException(
@@ -189,7 +187,7 @@ final class AuthorizationDecisionService
                 );
             }
 
-            $this->assertDirectorControl(
+            $this->assertApproverControl(
                 $user,
                 $ticket,
                 $approval
@@ -207,24 +205,24 @@ final class AuthorizationDecisionService
             );
 
             if (
-                (bool) $transition['requires_supervisor']
-                && $ticket['supervisor_user_id'] === null
+                (bool) $transition['requires_operator']
+                && $ticket['operator_user_id'] === null
             ) {
                 throw new HttpException(
                     422,
-                    'supervisor_required',
-                    'El ticket requiere un supervisor asignado.'
+                    'operator_required',
+                    'El ticket requiere un Operator asignado.'
                 );
             }
 
             if (
-                (bool) $transition['requires_director']
-                && $ticket['director_user_id'] === null
+                (bool) $transition['requires_approver']
+                && $ticket['approver_user_id'] === null
             ) {
                 throw new HttpException(
                     422,
-                    'director_required',
-                    'El ticket requiere un responsable de Dirección.'
+                    'approver_required',
+                    'El ticket requiere un Approver asignado.'
                 );
             }
 
@@ -242,13 +240,9 @@ final class AuthorizationDecisionService
             }
 
             if ($decision === 'approved') {
-                $approvedAmount =
-                    $this->normalizeAmount(
-                        (string) (
-                            $input['approved_amount']
-                            ?? ''
-                        )
-                    );
+                $approvedAmount = $this->normalizeAmount(
+                    (string) ($input['approved_amount'] ?? '')
+                );
 
                 if (
                     $approvedAmount
@@ -262,10 +256,9 @@ final class AuthorizationDecisionService
                 }
             }
 
-            $approvalStatusId =
-                $this->approvalStatusId(
-                    (string) $config['approval_status']
-                );
+            $approvalStatusId = $this->approvalStatusId(
+                (string) $config['approval_status']
+            );
 
             $updateApproval = $this->pdo->prepare(
                 'UPDATE ticket_approval_requests
@@ -281,12 +274,9 @@ final class AuthorizationDecisionService
             );
 
             $updateApproval->execute([
-                'status_id' =>
-                    $approvalStatusId,
-                'decided_by_user_id' =>
-                    $actorId,
-                'decision_comment' =>
-                    $comment,
+                'status_id' => $approvalStatusId,
+                'decided_by_user_id' => $actorId,
+                'decision_comment' => $comment,
                 'approved_amount' =>
                     $approvedAmount !== null
                         ? number_format(
@@ -296,18 +286,13 @@ final class AuthorizationDecisionService
                             ''
                         )
                         : null,
-                'id' =>
-                    $approvalRequestId,
-                'ticket_id' =>
-                    $ticketId,
+                'id' => $approvalRequestId,
+                'ticket_id' => $ticketId,
                 'pending_status_id' =>
                     (int) $approval['status_id'],
             ]);
 
-            if (
-                $updateApproval->rowCount()
-                !== 1
-            ) {
+            if ($updateApproval->rowCount() !== 1) {
                 throw new HttpException(
                     409,
                     'approval_request_changed',
@@ -316,21 +301,19 @@ final class AuthorizationDecisionService
             }
 
             if ($decision === 'approved') {
-                $quotationUpdate =
-                    $this->pdo->prepare(
-                        'UPDATE ticket_quotations
-                         SET status = \'approved\',
-                             updated_at = UTC_TIMESTAMP()
-                         WHERE id = :quotation_id
-                           AND ticket_id = :ticket_id
-                           AND is_current = 1'
-                    );
+                $quotationUpdate = $this->pdo->prepare(
+                    'UPDATE ticket_quotations
+                     SET status = \'approved\',
+                         updated_at = UTC_TIMESTAMP()
+                     WHERE id = :quotation_id
+                       AND ticket_id = :ticket_id
+                       AND is_current = 1'
+                );
 
                 $quotationUpdate->execute([
                     'quotation_id' =>
                         (int) $approval['quotation_id'],
-                    'ticket_id' =>
-                        $ticketId,
+                    'ticket_id' => $ticketId,
                 ]);
             }
 
@@ -343,8 +326,8 @@ final class AuthorizationDecisionService
                 $decision === 'rejected'
                     ? null
                     : (
-                        $ticket['supervisor_user_id'] !== null
-                            ? (int) $ticket['supervisor_user_id']
+                        $ticket['operator_user_id'] !== null
+                            ? (int) $ticket['operator_user_id']
                             : null
                     );
 
@@ -380,10 +363,7 @@ final class AuthorizationDecisionService
                     $rowVersion,
             ]);
 
-            if (
-                $updateTicket->rowCount()
-                !== 1
-            ) {
+            if ($updateTicket->rowCount() !== 1) {
                 throw new HttpException(
                     409,
                     'ticket_changed',
@@ -395,9 +375,9 @@ final class AuthorizationDecisionService
                 $assignmentComment =
                     match ($decision) {
                         'approved' =>
-                            'La autorización fue aprobada. El supervisor recupera la responsabilidad para iniciar la ejecución.',
+                            'La autorización fue aprobada. El Operator recupera la responsabilidad para iniciar la ejecución.',
                         'changes_requested' =>
-                            'Dirección solicitó cambios. El supervisor recupera la responsabilidad para preparar una nueva propuesta.',
+                            'El Approver solicitó cambios. El Operator recupera la responsabilidad para preparar una nueva propuesta.',
                         default =>
                             'La solicitud fue rechazada y el ticket queda sin una acción operativa pendiente.',
                     };
@@ -414,8 +394,7 @@ final class AuthorizationDecisionService
 
             $metadata = json_encode(
                 [
-                    'request_id' =>
-                        $requestId,
+                    'request_id' => $requestId,
                     'approval_request_id' =>
                         $approvalRequestId,
                     'quotation_id' =>
@@ -460,8 +439,7 @@ final class AuthorizationDecisionService
             );
 
             $history->execute([
-                'ticket_id' =>
-                    $ticketId,
+                'ticket_id' => $ticketId,
                 'from_status_id' =>
                     (int) $ticket['current_status_id'],
                 'to_status_id' =>
@@ -474,12 +452,11 @@ final class AuthorizationDecisionService
                     $metadata,
             ]);
 
-            $recipients =
-                $this->decisionRecipients(
-                    $ticket,
-                    $approval,
-                    $actorId
-                );
+            $recipients = $this->decisionRecipients(
+                $ticket,
+                $approval,
+                $actorId
+            );
 
             foreach ($recipients as $recipient) {
                 $this->insertNotification(
@@ -684,25 +661,25 @@ final class AuthorizationDecisionService
      * @param array<string, mixed> $ticket
      * @param array<string, mixed> $approval
      */
-    private function assertDirectorControl(
+    private function assertApproverControl(
         array $user,
         array $ticket,
         array $approval
     ): void {
         $userId = (int) ($user['id'] ?? 0);
 
-        $isDirector =
+        $isApprover =
             AuthorizationService::hasRoleAtLocation(
                 $user,
-                'director',
+                'approver',
                 (int) ($ticket['location_id'] ?? 0)
             );
 
         if (
-            !$isDirector
+            !$isApprover
             || $userId < 1
             || $userId
-                !== (int) ($ticket['director_user_id'] ?? 0)
+                !== (int) ($ticket['approver_user_id'] ?? 0)
             || $userId
                 !== (int) ($ticket['action_owner_user_id'] ?? 0)
             || $userId
@@ -710,8 +687,8 @@ final class AuthorizationDecisionService
         ) {
             throw new HttpException(
                 403,
-                'director_action_required',
-                'Solo el responsable de Dirección asignado puede resolver esta solicitud.'
+                'approver_action_required',
+                'Solo el Approver asignado puede resolver esta solicitud.'
             );
         }
     }
@@ -822,8 +799,7 @@ final class AuthorizationDecisionService
             'id' => $quotationId,
         ]);
 
-        return $statement->fetchColumn()
-            !== false;
+        return $statement->fetchColumn() !== false;
     }
 
     /**
@@ -840,7 +816,7 @@ final class AuthorizationDecisionService
 
         foreach (
             [
-                $ticket['supervisor_user_id'] ?? null,
+                $ticket['operator_user_id'] ?? null,
                 $approval['requested_by_user_id'] ?? null,
             ] as $id
         ) {
@@ -974,17 +950,17 @@ final class AuthorizationDecisionService
 
     private function notificationMessage(
         string $decision,
-        string $directorName
+        string $approverName
     ): string {
         return match ($decision) {
             'approved' =>
-                $directorName
-                . ' autorizó la solicitud. El supervisor puede continuar con la ejecución.',
+                $approverName
+                . ' autorizó la solicitud. El Operator puede continuar con la ejecución.',
             'changes_requested' =>
-                $directorName
-                . ' solicitó cambios a la propuesta. El supervisor debe preparar una nueva versión.',
+                $approverName
+                . ' solicitó cambios a la propuesta. El Operator debe preparar una nueva versión.',
             default =>
-                $directorName
+                $approverName
                 . ' rechazó la solicitud de autorización.',
         };
     }
@@ -1000,8 +976,7 @@ final class AuthorizationDecisionService
             )
             ?? trim($value);
 
-        $length =
-            $this->textLength($value);
+        $length = $this->textLength($value);
 
         if ($length < 5) {
             throw new HttpException(
@@ -1011,10 +986,7 @@ final class AuthorizationDecisionService
             );
         }
 
-        if (
-            $length
-            > self::MAX_COMMENT_LENGTH
-        ) {
+        if ($length > self::MAX_COMMENT_LENGTH) {
             throw new HttpException(
                 422,
                 'decision_comment_too_long',

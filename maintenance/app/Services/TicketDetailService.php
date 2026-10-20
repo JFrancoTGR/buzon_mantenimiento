@@ -53,8 +53,8 @@ final class TicketDetailService
             'completion_evidence' => $this->loadCompletionEvidence($ticketId),
             'quotations' => $canViewQuotations ? $this->loadQuotations($ticketId) : [],
             'approval_requests' => $canViewApprovals ? $this->loadApprovalRequests($ticketId) : [],
-            'eligible_directors' => $canRequestAuthorization
-                ? $this->loadEligibleDirectors($locationId)
+            'eligible_approvers' => $canRequestAuthorization
+                ? $this->loadEligibleApprovers($locationId)
                 : [],
             'comments' => $this->loadComments($ticketId),
             'status_history' => $statusHistory,
@@ -262,7 +262,7 @@ final class TicketDetailService
 
             $update->execute([
                 'to_status_id' => (int) $transition['to_status_id'],
-                'action_owner_user_id' => $ticket['supervisor_user_id'],
+                'action_owner_user_id' => $ticket['operator_user_id'],
                 'id' => $ticketId,
                 'from_status_id' => (int) $ticket['current_status_id'],
                 'row_version' => $rowVersion,
@@ -396,7 +396,7 @@ final class TicketDetailService
         try {
             $ticket = $this->loadTicket($ticketId, true);
             $this->assertTicketAccess($user, $ticket);
-            $this->assertExecutionSupervisorControl($user, $ticket);
+            $this->assertExecutionOperatorControl($user, $ticket);
 
             AuthorizationService::requirePermission(
                 $user,
@@ -416,7 +416,7 @@ final class TicketDetailService
                 throw new HttpException(
                     422,
                     'execution_not_available',
-                    'La ejecución solo puede iniciarse después de que Dirección autorice el trabajo.'
+                    'La ejecución solo puede iniciarse después de que el Approver autorice el trabajo.'
                 );
             }
 
@@ -492,7 +492,7 @@ final class TicketDetailService
 
             $update->execute([
                 'to_status_id' => (int) $transition['to_status_id'],
-                'action_owner_user_id' => (int) $ticket['supervisor_user_id'],
+                'action_owner_user_id' => (int) $ticket['operator_user_id'],
                 'id' => $ticketId,
                 'from_status_id' => (int) $ticket['current_status_id'],
                 'row_version' => $rowVersion,
@@ -588,7 +588,7 @@ final class TicketDetailService
                     'status_id' => (int) $transition['to_status_id'],
                     'status_code' => (string) $transition['to_status_code'],
                     'started_at' => $startedAt,
-                    'action_owner_user_id' => (int) $ticket['supervisor_user_id'],
+                    'action_owner_user_id' => (int) $ticket['operator_user_id'],
                     'row_version' => $rowVersion + 1,
                 ],
                 $requestId
@@ -664,7 +664,7 @@ final class TicketDetailService
         try {
             $ticket = $this->loadTicket($ticketId, true);
             $this->assertTicketAccess($user, $ticket);
-            $this->assertCompletionSupervisorControl($user, $ticket);
+            $this->assertCompletionOperatorControl($user, $ticket);
 
             AuthorizationService::requirePermission(
                 $user,
@@ -1000,7 +1000,7 @@ final class TicketDetailService
         try {
             $ticket = $this->loadTicket($ticketId, true);
             $this->assertTicketAccess($user, $ticket);
-            $this->assertSupervisorControl($user, $ticket);
+            $this->assertOperatorControl($user, $ticket);
 
             AuthorizationService::requirePermission(
                 $user,
@@ -1077,7 +1077,7 @@ final class TicketDetailService
             $update->execute([
                 'processing_route' => $processingRoute,
                 'to_status_id' => (int) $transition['to_status_id'],
-                'action_owner_user_id' => $ticket['supervisor_user_id'],
+                'action_owner_user_id' => $ticket['operator_user_id'],
                 'start_work' => $processingRoute === 'direct' ? 1 : 0,
                 'id' => $ticketId,
                 'from_status_id' => (int) $ticket['current_status_id'],
@@ -1219,8 +1219,8 @@ final class TicketDetailService
                 a.sha256_hash,
                 t.location_id,
                 t.reported_by_user_id,
-                t.supervisor_user_id,
-                t.director_user_id,
+                t.operator_user_id,
+                t.approver_user_id,
                 t.action_owner_user_id
              FROM ticket_attachments a
              INNER JOIN tickets t
@@ -1333,10 +1333,10 @@ final class TicketDetailService
                     s.is_terminal,
                     CONCAT_WS(" ", reporter.first_name, reporter.last_name) AS reporter_name,
                     reporter.email AS reporter_email,
-                    CONCAT_WS(" ", supervisor.first_name, supervisor.last_name) AS supervisor_name,
-                    supervisor.email AS supervisor_email,
-                    CONCAT_WS(" ", director.first_name, director.last_name) AS director_name,
-                    director.email AS director_email,
+                    CONCAT_WS(" ", operator.first_name, operator.last_name) AS operator_name,
+                    operator.email AS operator_email,
+                    CONCAT_WS(" ", approver.first_name, approver.last_name) AS approver_name,
+                    approver.email AS approver_email,
                     CONCAT_WS(" ", owner.first_name, owner.last_name) AS action_owner_name,
                     owner.email AS action_owner_email
                 FROM tickets t
@@ -1348,10 +1348,10 @@ final class TicketDetailService
                     ON s.id = t.current_status_id
                 INNER JOIN users reporter
                     ON reporter.id = t.reported_by_user_id
-                LEFT JOIN users supervisor
-                    ON supervisor.id = t.supervisor_user_id
-                LEFT JOIN users director
-                    ON director.id = t.director_user_id
+                LEFT JOIN users operator
+                    ON operator.id = t.operator_user_id
+                LEFT JOIN users approver
+                    ON approver.id = t.approver_user_id
                 LEFT JOIN users owner
                     ON owner.id = t.action_owner_user_id
                 WHERE t.id = :id
@@ -1419,14 +1419,14 @@ final class TicketDetailService
         if (
             !$this->hasRole(
                 $user,
-                'supervisor',
+                'operator',
                 $ticket
             )
         ) {
             throw new HttpException(
                 403,
-                'supervisor_role_required',
-                'Esta acción corresponde al perfil Supervisor.'
+                'operator_role_required',
+                'Esta acción corresponde al perfil Operator.'
             );
         }
 
@@ -1434,13 +1434,13 @@ final class TicketDetailService
 
         if (
             $userId < 1
-            || $userId !== (int) ($ticket['supervisor_user_id'] ?? 0)
+            || $userId !== (int) ($ticket['operator_user_id'] ?? 0)
             || $userId !== (int) ($ticket['action_owner_user_id'] ?? 0)
         ) {
             throw new HttpException(
                 403,
                 'ticket_not_assigned',
-                'Solo el supervisor responsable puede realizar esta acción.'
+                'Solo el Operator responsable puede realizar esta acción.'
             );
         }
     }
@@ -1481,15 +1481,15 @@ final class TicketDetailService
                 $ticket['reporter_name'],
                 $ticket['reporter_email']
             ),
-            'supervisor' => $this->person(
-                $ticket['supervisor_user_id'],
-                $ticket['supervisor_name'],
-                $ticket['supervisor_email']
+            'operator' => $this->person(
+                $ticket['operator_user_id'],
+                $ticket['operator_name'],
+                $ticket['operator_email']
             ),
-            'director' => $this->person(
-                $ticket['director_user_id'],
-                $ticket['director_name'],
-                $ticket['director_email']
+            'approver' => $this->person(
+                $ticket['approver_user_id'],
+                $ticket['approver_name'],
+                $ticket['approver_email']
             ),
             'action_owner' => $this->person(
                 $ticket['action_owner_user_id'],
@@ -1526,7 +1526,7 @@ final class TicketDetailService
         $ticket['status'] = $publicStatus;
         $ticket['processing_route'] = null;
         $ticket['processing_route_label'] = 'Gestión interna';
-        $ticket['director'] = null;
+        $ticket['approver'] = null;
         $ticket['action_owner'] = null;
         $ticket['authorized_at'] = null;
 
@@ -1903,7 +1903,7 @@ final class TicketDetailService
     }
 
     /** @return array<int, array<string, mixed>> */
-    private function loadEligibleDirectors(
+    private function loadEligibleApprovers(
         int $locationId
     ): array {
         $statement = $this->pdo->prepare(
@@ -1924,7 +1924,7 @@ final class TicketDetailService
                 ON r.id = mag.role_id
                AND r.application_id = mag.application_id
                AND r.is_active = 1
-               AND r.code = 'director'
+               AND r.code = 'approver'
              INNER JOIN users u
                 ON u.id = mag.user_id
                AND u.status = 'active'
@@ -2240,8 +2240,8 @@ final class TicketDetailService
                 tr.to_status_id,
                 tr.requires_comment,
                 tr.requires_quotation,
-                tr.requires_supervisor,
-                tr.requires_director,
+                tr.requires_operator,
+                tr.requires_approver,
                 p.code AS permission_code,
                 ts.code AS to_status_code,
                 ts.name AS to_status_name
@@ -2284,15 +2284,15 @@ final class TicketDetailService
             }
 
             if (
-                (bool) $row['requires_supervisor']
-                && $ticket['supervisor_user_id'] === null
+                (bool) $row['requires_operator']
+                && $ticket['operator_user_id'] === null
             ) {
                 continue;
             }
 
             if (
-                (bool) $row['requires_director']
-                && $ticket['director_user_id'] === null
+                (bool) $row['requires_approver']
+                && $ticket['approver_user_id'] === null
             ) {
                 continue;
             }
@@ -2369,24 +2369,24 @@ final class TicketDetailService
         array $ticket
     ): void {
         if (
-            (bool) $transition['requires_supervisor']
-            && $ticket['supervisor_user_id'] === null
+            (bool) $transition['requires_operator']
+            && $ticket['operator_user_id'] === null
         ) {
             throw new HttpException(
                 422,
-                'supervisor_required',
-                'El ticket requiere un supervisor asignado.'
+                'operator_required',
+                'El ticket requiere un Operator asignado.'
             );
         }
 
         if (
-            (bool) $transition['requires_director']
-            && $ticket['director_user_id'] === null
+            (bool) $transition['requires_approver']
+            && $ticket['approver_user_id'] === null
         ) {
             throw new HttpException(
                 422,
-                'director_required',
-                'El ticket requiere un responsable de Dirección.'
+                'approver_required',
+                'El ticket requiere un Approver asignado.'
             );
         }
 
@@ -2435,6 +2435,11 @@ final class TicketDetailService
                 'ticket.view.all',
                 $locationId
             )
+            || AuthorizationService::hasPermission(
+                $user,
+                'ticket.view.location',
+                $locationId
+            )
         ) {
             return true;
         }
@@ -2455,8 +2460,8 @@ final class TicketDetailService
             && in_array(
                 $userId,
                 [
-                    (int) ($ticket['supervisor_user_id'] ?? 0),
-                    (int) ($ticket['director_user_id'] ?? 0),
+                    (int) ($ticket['operator_user_id'] ?? 0),
+                    (int) ($ticket['approver_user_id'] ?? 0),
                     (int) ($ticket['action_owner_user_id'] ?? 0),
                 ],
                 true
@@ -2486,7 +2491,7 @@ final class TicketDetailService
             )
             || !$this->hasRole(
                 $user,
-                'supervisor',
+                'operator',
                 $ticket
             )
         ) {
@@ -2497,7 +2502,7 @@ final class TicketDetailService
 
         return $userId > 0
             && $userId
-                === (int) ($ticket['supervisor_user_id'] ?? 0)
+                === (int) ($ticket['operator_user_id'] ?? 0)
             && $userId
                 === (int) ($ticket['action_owner_user_id'] ?? 0);
     }
@@ -2516,6 +2521,11 @@ final class TicketDetailService
             AuthorizationService::hasPermission(
                 $user,
                 'ticket.view.all',
+                $locationId
+            )
+            || AuthorizationService::hasPermission(
+                $user,
+                'ticket.view.location',
                 $locationId
             )
         ) {
@@ -2538,8 +2548,8 @@ final class TicketDetailService
             && in_array(
                 $userId,
                 [
-                    (int) ($ticket['supervisor_user_id'] ?? 0),
-                    (int) ($ticket['director_user_id'] ?? 0),
+                    (int) ($ticket['operator_user_id'] ?? 0),
+                    (int) ($ticket['approver_user_id'] ?? 0),
                     (int) ($ticket['action_owner_user_id'] ?? 0),
                 ],
                 true
@@ -2568,12 +2578,12 @@ final class TicketDetailService
             )
             || !AuthorizationService::hasPermission(
                 $user,
-                'ticket.assign.director',
+                'ticket.assign.approver',
                 $locationId
             )
             || !$this->hasRole(
                 $user,
-                'supervisor',
+                'operator',
                 $ticket
             )
             || !$this->hasCurrentQuotation((int) $ticket['id'])
@@ -2585,7 +2595,7 @@ final class TicketDetailService
 
         return $userId > 0
             && $userId
-                === (int) ($ticket['supervisor_user_id'] ?? 0)
+                === (int) ($ticket['operator_user_id'] ?? 0)
             && $userId
                 === (int) ($ticket['action_owner_user_id'] ?? 0);
     }
@@ -2609,7 +2619,7 @@ final class TicketDetailService
             )
             || !$this->hasRole(
                 $user,
-                'director',
+                'approver',
                 $ticket
             )
         ) {
@@ -2620,7 +2630,7 @@ final class TicketDetailService
 
         if (
             $userId < 1
-            || $userId !== (int) ($ticket['director_user_id'] ?? 0)
+            || $userId !== (int) ($ticket['approver_user_id'] ?? 0)
             || $userId !== (int) ($ticket['action_owner_user_id'] ?? 0)
         ) {
             return false;
@@ -2710,7 +2720,7 @@ final class TicketDetailService
             )
             || !$this->hasRole(
                 $user,
-                'supervisor',
+                'operator',
                 $ticket
             )
         ) {
@@ -2721,7 +2731,7 @@ final class TicketDetailService
 
         if (
             $userId < 1
-            || $userId !== (int) ($ticket['supervisor_user_id'] ?? 0)
+            || $userId !== (int) ($ticket['operator_user_id'] ?? 0)
             || $userId !== (int) ($ticket['action_owner_user_id'] ?? 0)
         ) {
             return false;
@@ -2769,7 +2779,7 @@ final class TicketDetailService
             )
             || !$this->hasRole(
                 $user,
-                'supervisor',
+                'operator',
                 $ticket
             )
         ) {
@@ -2780,7 +2790,7 @@ final class TicketDetailService
 
         return $userId > 0
             && $userId
-                === (int) ($ticket['supervisor_user_id'] ?? 0)
+                === (int) ($ticket['operator_user_id'] ?? 0)
             && $userId
                 === (int) ($ticket['action_owner_user_id'] ?? 0);
     }
@@ -2789,21 +2799,21 @@ final class TicketDetailService
      * @param array<string, mixed> $user
      * @param array<string, mixed> $ticket
      */
-    private function assertCompletionSupervisorControl(
+    private function assertCompletionOperatorControl(
         array $user,
         array $ticket
     ): void {
         if (
             !$this->hasRole(
                 $user,
-                'supervisor',
+                'operator',
                 $ticket
             )
         ) {
             throw new HttpException(
                 403,
-                'supervisor_role_required',
-                'Esta acción corresponde al perfil Supervisor.'
+                'operator_role_required',
+                'Esta acción corresponde al perfil Operator.'
             );
         }
 
@@ -2811,13 +2821,13 @@ final class TicketDetailService
 
         if (
             $userId < 1
-            || $userId !== (int) ($ticket['supervisor_user_id'] ?? 0)
+            || $userId !== (int) ($ticket['operator_user_id'] ?? 0)
             || $userId !== (int) ($ticket['action_owner_user_id'] ?? 0)
         ) {
             throw new HttpException(
                 403,
-                'supervisor_completion_required',
-                'Solo el supervisor responsable puede registrar la terminación del trabajo.'
+                'operator_completion_required',
+                'Solo el Operator responsable puede registrar la terminación del trabajo.'
             );
         }
     }
@@ -2826,21 +2836,21 @@ final class TicketDetailService
      * @param array<string, mixed> $user
      * @param array<string, mixed> $ticket
      */
-    private function assertExecutionSupervisorControl(
+    private function assertExecutionOperatorControl(
         array $user,
         array $ticket
     ): void {
         if (
             !$this->hasRole(
                 $user,
-                'supervisor',
+                'operator',
                 $ticket
             )
         ) {
             throw new HttpException(
                 403,
-                'supervisor_role_required',
-                'Esta acción corresponde al perfil Supervisor.'
+                'operator_role_required',
+                'Esta acción corresponde al perfil Operator.'
             );
         }
 
@@ -2848,13 +2858,13 @@ final class TicketDetailService
 
         if (
             $userId < 1
-            || $userId !== (int) ($ticket['supervisor_user_id'] ?? 0)
+            || $userId !== (int) ($ticket['operator_user_id'] ?? 0)
             || $userId !== (int) ($ticket['action_owner_user_id'] ?? 0)
         ) {
             throw new HttpException(
                 403,
-                'supervisor_execution_required',
-                'Solo el supervisor responsable puede iniciar la ejecución.'
+                'operator_execution_required',
+                'Solo el Operator responsable puede iniciar la ejecución.'
             );
         }
     }
@@ -2908,7 +2918,7 @@ final class TicketDetailService
             )
             || !$this->hasRole(
                 $user,
-                'supervisor',
+                'operator',
                 $ticket
             )
         ) {
@@ -2919,7 +2929,7 @@ final class TicketDetailService
 
         return $userId > 0
             && $userId
-                === (int) ($ticket['supervisor_user_id'] ?? 0)
+                === (int) ($ticket['operator_user_id'] ?? 0)
             && $userId
                 === (int) ($ticket['action_owner_user_id'] ?? 0);
     }
@@ -2928,21 +2938,21 @@ final class TicketDetailService
      * @param array<string, mixed> $user
      * @param array<string, mixed> $ticket
      */
-    private function assertSupervisorControl(
+    private function assertOperatorControl(
         array $user,
         array $ticket
     ): void {
         if (
             !$this->hasRole(
                 $user,
-                'supervisor',
+                'operator',
                 $ticket
             )
         ) {
             throw new HttpException(
                 403,
-                'supervisor_role_required',
-                'Esta acción corresponde al perfil Supervisor.'
+                'operator_role_required',
+                'Esta acción corresponde al perfil Operator.'
             );
         }
 
@@ -2950,13 +2960,13 @@ final class TicketDetailService
 
         if (
             $userId < 1
-            || $userId !== (int) ($ticket['supervisor_user_id'] ?? 0)
+            || $userId !== (int) ($ticket['operator_user_id'] ?? 0)
             || $userId !== (int) ($ticket['action_owner_user_id'] ?? 0)
         ) {
             throw new HttpException(
                 403,
-                'supervisor_action_required',
-                'Solo el supervisor responsable puede definir la ruta de atención.'
+                'operator_action_required',
+                'Solo el Operator responsable puede definir la ruta de atención.'
             );
         }
     }
@@ -2972,7 +2982,7 @@ final class TicketDetailService
         if (
             !$this->hasRole(
                 $user,
-                'supervisor',
+                'operator',
                 $ticket
             )
         ) {
@@ -2983,7 +2993,7 @@ final class TicketDetailService
 
         return $userId > 0
             && $userId
-                === (int) ($ticket['supervisor_user_id'] ?? 0)
+                === (int) ($ticket['operator_user_id'] ?? 0)
             && $userId
                 === (int) ($ticket['action_owner_user_id'] ?? 0);
     }
@@ -3001,8 +3011,8 @@ final class TicketDetailService
             ? [(int) $ticket['reported_by_user_id']]
             : [
                 (int) $ticket['reported_by_user_id'],
-                (int) ($ticket['supervisor_user_id'] ?? 0),
-                (int) ($ticket['director_user_id'] ?? 0),
+                (int) ($ticket['operator_user_id'] ?? 0),
+                (int) ($ticket['approver_user_id'] ?? 0),
                 (int) ($ticket['action_owner_user_id'] ?? 0),
             ];
 

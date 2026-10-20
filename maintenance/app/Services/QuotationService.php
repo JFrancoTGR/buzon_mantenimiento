@@ -131,7 +131,7 @@ final class QuotationService
                 (int) $ticket['location_id']
             );
 
-            $this->assertSupervisorControl(
+            $this->assertOperatorControl(
                 $user,
                 $ticket
             );
@@ -170,7 +170,7 @@ final class QuotationService
                 throw new HttpException(
                     422,
                     'quotation_status_invalid',
-                    'Solo pueden cargarse cotizaciones cuando el ticket está en Cotización pendiente o cuando Dirección solicitó cambios.'
+                    'Solo pueden cargarse cotizaciones cuando el ticket está en Cotización pendiente o cuando el Approver solicitó cambios.'
                 );
             }
 
@@ -345,7 +345,7 @@ final class QuotationService
                     'to_status_id' =>
                         (int) $revisionTransition['to_status_id'],
                     'action_owner_user_id' =>
-                        (int) $ticket['supervisor_user_id'],
+                        (int) $ticket['operator_user_id'],
                     'id' => $ticketId,
                     'from_status_id' =>
                         (int) $ticket['current_status_id'],
@@ -376,7 +376,7 @@ final class QuotationService
 
             if ($isRevisionAfterChanges) {
                 $revisionComment = sprintf(
-                    'Se cargó la versión %d de la cotización para atender los cambios solicitados por Dirección.',
+                    'Se cargó la versión %d de la cotización para atender los cambios solicitados por el Approver.',
                     $versionNumber
                 );
 
@@ -491,7 +491,7 @@ final class QuotationService
                         'version_number' =>
                             $versionNumber,
                         'action_owner_user_id' =>
-                            (int) $ticket['supervisor_user_id'],
+                            (int) $ticket['operator_user_id'],
                         'row_version' =>
                             $rowVersion + 1,
                     ],
@@ -648,21 +648,21 @@ final class QuotationService
      * @param array<string, mixed> $user
      * @param array<string, mixed> $ticket
      */
-    private function assertSupervisorControl(
+    private function assertOperatorControl(
         array $user,
         array $ticket
     ): void {
         if (
             !AuthorizationService::hasRoleAtLocation(
                 $user,
-                'supervisor',
+                'operator',
                 (int) ($ticket['location_id'] ?? 0)
             )
         ) {
             throw new HttpException(
                 403,
-                'supervisor_role_required',
-                'Esta acción corresponde al perfil Supervisor.'
+                'operator_role_required',
+                'Esta acción corresponde al perfil Operator.'
             );
         }
 
@@ -671,14 +671,14 @@ final class QuotationService
         if (
             $userId < 1
             || $userId
-                !== (int) ($ticket['supervisor_user_id'] ?? 0)
+                !== (int) ($ticket['operator_user_id'] ?? 0)
             || $userId
                 !== (int) ($ticket['action_owner_user_id'] ?? 0)
         ) {
             throw new HttpException(
                 403,
-                'supervisor_action_required',
-                'Solo el supervisor responsable puede administrar las cotizaciones del ticket.'
+                'operator_action_required',
+                'Solo el Operator responsable puede administrar las cotizaciones del ticket.'
             );
         }
     }

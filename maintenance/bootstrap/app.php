@@ -13,8 +13,8 @@ use App\Services\DashboardService;
 use App\Services\MailerService;
 use App\Services\MaintenanceContextService;
 use App\Services\NotificationService;
+use App\Services\OperatorService;
 use App\Services\QuotationService;
-use App\Services\SupervisorService;
 use App\Services\TicketDetailService;
 use App\Services\TicketService;
 use EUTools\Core\Security\PersistentSessionService;
@@ -181,8 +181,8 @@ $authorizationDecisionService =
         $mailerService
     );
 
-$supervisorService =
-    new SupervisorService($pdo);
+$operatorService =
+    new OperatorService($pdo);
 
 set_exception_handler(
     static function (
@@ -242,5 +242,5 @@ return [
         $authorizationRequestService,
     'authorization_decisions' =>
         $authorizationDecisionService,
-    'supervisor' => $supervisorService,
+    'operator' => $operatorService,
 ];
