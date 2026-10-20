@@ -27,7 +27,10 @@
               <h1 id="tickets-title" data-scope-title>Tickets</h1>
               <p data-scope-description>Consulta reportes, prioridades y acciones pendientes dentro de tu alcance.</p>
             </div>
-            <?php if ($canCreateTicket): ?>
+            <?php
+                /** @var bool $canCreateTicket */
+                if ($canCreateTicket):
+            ?>
               <a
                 class="button button--primary"
                 href="/maintenance/new-ticket.html"
@@ -42,7 +45,7 @@
 
           <p class="dashboard-error" data-page-error hidden></p>
 
-          <section class="supervisor-metrics" aria-label="Resumen de tickets">
+          <section class="operator-metrics" aria-label="Resumen de tickets">
             <button class="metric-card metric-card--button" type="button" data-counter-filter="attention" data-status="authorization_pending">
               <p class="metric-card__label">Requieren mi atención</p><p class="metric-card__value loading-line" data-counter="requires_attention"></p><p class="metric-card__meta">Responsabilidad actual</p>
             </button>
@@ -88,7 +91,7 @@
             <header class="panel__header"><div><h2>Bandeja de tickets</h2><p>Ordenada por responsabilidad actual, prioridad y última actualización.</p></div></header>
             <div data-ticket-list-content>
               <div class="table-scroll">
-                <table class="data-table supervisor-table">
+                <table class="data-table operator-table">
                   <thead><tr><th>Folio</th><th>Reporte</th><th>Ubicación</th><th>Prioridad</th><th>Estado</th><th>Ruta</th><th>Reportante</th><th>Siguiente acción</th><th>Actualización</th><th>Acción</th></tr></thead>
                   <tbody data-ticket-list><tr><td colspan="10" class="data-table__muted">Cargando tickets…</td></tr></tbody>
                 </table>

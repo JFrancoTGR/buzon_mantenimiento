@@ -120,7 +120,7 @@
 
               <article class="panel approval-panel" data-approval-panel hidden>
                 <header class="panel__header">
-                  <div><h2>Autorización de Dirección</h2><p>Solicitudes vinculadas a la cotización vigente y sus revisiones.</p></div>
+                  <div><h2>Autorización</h2><p>Solicitudes vinculadas a la cotización vigente y sus revisiones.</p></div>
                   <span class="panel-count" data-approvals-count>0 solicitudes</span>
                 </header>
                 <div class="panel__body approval-panel__body">
@@ -129,16 +129,16 @@
                   <section class="approval-request" data-approval-request-container hidden>
                     <div class="approval-request__intro">
                       <h3>Solicitar autorización</h3>
-                      <p>Selecciona a la persona de Dirección que revisará la cotización vigente. Al enviar, el ticket quedará bajo su responsabilidad.</p>
+                      <p>Selecciona al Approver que revisará la cotización vigente. Al enviar, el ticket quedará bajo su responsabilidad.</p>
                     </div>
                     <form class="approval-form" data-approval-form>
                       <div class="form-grid form-grid--two">
                         <label class="form-field">
-                          <span>Responsable de Dirección *</span>
-                          <select name="approver_user_id" required data-approval-director-select>
+                          <span>Approver *</span>
+                          <select name="approver_user_id" required data-approval-approver-select>
                             <option value="">Selecciona una persona</option>
                           </select>
-                          <span class="form-help" data-approval-director-help>Solo usuarios activos con rol Dirección.</span>
+                          <span class="form-help" data-approval-approver-help>Solo usuarios activos con perfil Approver en esta ubicación.</span>
                         </label>
                         <label class="form-field">
                           <span>Importe solicitado *</span>
@@ -151,14 +151,14 @@
 
                       <label class="form-field">
                         <span>Justificación de la solicitud *</span>
-                        <textarea name="request_comment" rows="4" minlength="5" maxlength="5000" required placeholder="Explica por qué debe autorizarse esta reparación y cualquier consideración relevante para Dirección."></textarea>
+                        <textarea name="request_comment" rows="4" minlength="5" maxlength="5000" required placeholder="Explica por qué debe autorizarse esta reparación y cualquier consideración relevante para el Approver."></textarea>
                       </label>
 
                       <div class="approval-form__actions">
                         <span class="message" data-approval-message aria-live="polite"></span>
                         <button class="button button--primary" type="submit" data-approval-submit>
                           <svg aria-hidden="true"><use href="#icon-send"></use></svg>
-                          Enviar a Dirección
+                          Enviar a autorización
                         </button>
                       </div>
                     </form>

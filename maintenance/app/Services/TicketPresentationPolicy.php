@@ -14,8 +14,8 @@ final class TicketPresentationPolicy
      *
      * Without a Location, the user is considered a reporter-only viewer
      * only when every active territorial grant is Reporter. This keeps a
-     * mixed Reporter/Supervisor user from being forced into Reporter
-     * presentation globally.
+     * mixed-profile user from being forced into Reporter presentation
+     * globally.
      *
      * @param array<string, mixed> $user
      */
@@ -34,14 +34,7 @@ final class TicketPresentationPolicy
         $grants = $user['grants'] ?? [];
 
         if (! is_array($grants) || $grants === []) {
-            /*
-             * Compatibility fallback for legacy fixtures/scripts that
-             * still construct a user using only the old roles array.
-             */
-            $roles = $user['roles'] ?? [];
-
-            return is_array($roles)
-                && in_array('reporter', $roles, true);
+            return false;
         }
 
         $found = false;

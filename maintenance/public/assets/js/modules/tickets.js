@@ -54,7 +54,7 @@ async function initializePage() {
   try {
     const response =
       await apiRequest(
-        './api/supervisor/summary.php',
+        './api/operator/summary.php',
       );
 
     summary = response.data;
@@ -315,7 +315,7 @@ async function loadTickets() {
     }
 
     const url =
-      './api/supervisor/tickets.php'
+      './api/operator/tickets.php'
       + (
         params.size
           ? `?${params.toString()}`
@@ -394,7 +394,7 @@ function renderTickets(items) {
     document.createElement('table');
 
   table.className =
-    'data-table supervisor-table';
+    'data-table operator-table';
 
   table.innerHTML = isReporterView
     ? '<thead><tr>'
@@ -732,7 +732,7 @@ function nextActionLabel(
     quotation_pending:
       'Preparar cotización',
     authorization_pending:
-      'Esperar decisión de Dirección',
+      'Esperar decisión de Approver',
     changes_requested:
       'Atender correcciones',
     authorized:

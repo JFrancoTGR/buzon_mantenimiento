@@ -7,7 +7,7 @@
   margin-bottom: 0;
 }
 
-.supervisor-metrics {
+.operator-metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(170px, 1fr));
   gap: var(--space-4);
@@ -52,7 +52,7 @@
   grid-column: 3 / -1;
 }
 
-.supervisor-table {
+.operator-table {
   min-width: 1320px;
 }
 
@@ -98,7 +98,7 @@
 }
 
 @media (max-width: 1280px) {
-  .supervisor-metrics {
+  .operator-metrics {
     grid-template-columns: repeat(3, minmax(170px, 1fr));
   }
 
@@ -116,7 +116,7 @@
 }
 
 @media (max-width: 820px) {
-  .supervisor-metrics,
+  .operator-metrics,
   .ticket-filters {
     grid-template-columns: 1fr 1fr;
   }
@@ -133,7 +133,7 @@
 }
 
 @media (max-width: 520px) {
-  .supervisor-metrics,
+  .operator-metrics,
   .ticket-filters {
     grid-template-columns: 1fr;
   }

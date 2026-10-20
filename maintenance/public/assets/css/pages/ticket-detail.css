@@ -1016,20 +1016,20 @@
   color: var(--primary-dark);
 }
 
-.director-decision-modal {
+.approver-decision-modal {
   display: grid;
   gap: 8px;
   text-align: left;
 }
 
-.director-decision-modal label {
+.approver-decision-modal label {
   margin-top: 8px;
   font-size: 0.82rem;
   font-weight: 750;
 }
 
-.director-decision-modal .swal2-input,
-.director-decision-modal .swal2-textarea {
+.approver-decision-modal .swal2-input,
+.approver-decision-modal .swal2-textarea {
   width: 100%;
   margin: 0;
   box-sizing: border-box;
