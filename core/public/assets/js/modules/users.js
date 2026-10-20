@@ -625,6 +625,26 @@ function renderAccessEditor(user) {
 }
 
 function createAccessEditorRow(user, application, currentAccess) {
+  if (application?.access_model === 'location_grants') {
+    return createMaintenanceAccessEditorRow(
+      user,
+      application,
+      currentAccess,
+    );
+  }
+
+  return createSingleRoleAccessEditorRow(
+    user,
+    application,
+    currentAccess,
+  );
+}
+
+function createSingleRoleAccessEditorRow(
+  user,
+  application,
+  currentAccess,
+) {
   const row = document.createElement('div');
   row.className = 'users-access-editor__row';
 
@@ -635,7 +655,9 @@ function createAccessEditorRow(user, application, currentAccess) {
   applicationName.textContent = application.name || application.code;
 
   const currentRoleName =
-    currentAccess?.role?.name || currentAccess?.role?.code || 'Sin acceso';
+    currentAccess?.role?.name ||
+    currentAccess?.role?.code ||
+    'Sin acceso';
 
   const current = document.createElement('span');
   current.textContent = `Actual: ${currentRoleName}`;
@@ -643,7 +665,8 @@ function createAccessEditorRow(user, application, currentAccess) {
   applicationInfo.append(applicationName, current);
 
   const isSelfCore =
-    Number(user.id) === currentUserId && application.code === 'core';
+    Number(user.id) === currentUserId &&
+    application.code === 'core';
 
   const currentRoleCode = currentAccess?.role?.code || '';
 
@@ -722,15 +745,436 @@ function createAccessEditorRow(user, application, currentAccess) {
   return row;
 }
 
-function findUserApplicationAccess(user, applicationCode) {
+function createMaintenanceAccessEditorRow(
+  user,
+  application,
+  currentAccess,
+) {
+  const row = document.createElement('div');
+
+  row.className =
+    'users-access-editor__row users-access-editor__row--maintenance';
+
+  row.dataset.accessMaintenanceRow = '';
+  row.dataset.userId = String(user.id);
+  row.dataset.applicationCode = application.code;
+
+  const originalGrants = normalizeMaintenanceAccessGrants(
+    currentAccess?.grants || [],
+  );
+
+  row.dataset.originalGrantSignature =
+    maintenanceGrantSignature(originalGrants);
+
+  row.dataset.originalGrantCount = String(originalGrants.length);
+
+  const applicationInfo = document.createElement('div');
+  applicationInfo.className = 'users-access-editor__application';
+
+  const applicationName = document.createElement('strong');
+  applicationName.textContent = application.name || 'Mantenimiento';
+
+  const current = document.createElement('span');
+  current.textContent = `Actual: ${maintenanceAccessSummary(currentAccess)}`;
+
+  applicationInfo.append(applicationName, current);
+
+  const action = document.createElement('button');
+
+  action.type = 'button';
+  action.className = 'button button--primary users-access-editor__apply';
+  action.dataset.accessMaintenanceApply = '';
+  action.textContent = 'Aplicar';
+  action.disabled = true;
+
+  const editor = document.createElement('div');
+  editor.className = 'users-access-editor__maintenance';
+
+  const roles = Array.isArray(application.roles)
+    ? application.roles
+    : [];
+
+  const locations = Array.isArray(application.locations)
+    ? application.locations
+    : [];
+
+  const administratorRole =
+    roles.find((role) => role.code === 'administrator') || null;
+
+  const territorialRoles = roles.filter(
+    (role) => role.code !== 'administrator',
+  );
+
+  /*
+   * GLOBAL.
+   */
+  const globalField = document.createElement('label');
+  globalField.className =
+    'users-field users-access-editor__maintenance-global';
+
+  const globalLabel = document.createElement('span');
+  globalLabel.textContent = 'Acceso global';
+
+  const globalSelect = document.createElement('select');
+  globalSelect.dataset.accessMaintenanceGlobal = '';
+
+  const globalEmpty = document.createElement('option');
+  globalEmpty.value = '';
+  globalEmpty.textContent = 'Sin acceso global';
+
+  globalSelect.append(globalEmpty);
+
+  if (administratorRole) {
+    const option = document.createElement('option');
+
+    option.value = administratorRole.code;
+    option.textContent =
+      administratorRole.name || administratorRole.code;
+
+    globalSelect.append(option);
+  }
+
+  const currentGlobal = originalGrants.find(
+    (grant) => grant.location_id === null,
+  );
+
+  globalSelect.value = currentGlobal?.role_code || '';
+
+  globalField.append(globalLabel, globalSelect);
+  editor.append(globalField);
+
+  /*
+   * TERRITORIAL.
+   */
+  locations.forEach((location) => {
+    const field = document.createElement('label');
+    field.className =
+      'users-field users-access-editor__maintenance-location';
+
+    const label = document.createElement('span');
+    label.textContent = location.name || location.code;
+
+    const select = document.createElement('select');
+
+    select.dataset.accessMaintenanceLocation = String(location.id);
+
+    const empty = document.createElement('option');
+    empty.value = '';
+    empty.textContent = 'Sin acceso';
+
+    select.append(empty);
+
+    territorialRoles.forEach((role) => {
+      const option = document.createElement('option');
+
+      option.value = role.code;
+      option.textContent = role.name || role.code;
+
+      select.append(option);
+    });
+
+    const currentGrant = originalGrants.find(
+      (grant) => grant.location_id === Number(location.id),
+    );
+
+    select.value = currentGrant?.role_code || '';
+
+    field.append(label, select);
+    editor.append(field);
+  });
+
+  row.append(applicationInfo, action, editor);
+
+  if (!application.is_active) {
+    const note = document.createElement('p');
+
+    note.className = 'users-access-editor__restriction';
+    note.textContent =
+      'Mantenimiento está inactivo. No pueden crearse nuevos accesos mientras la aplicación permanezca inactiva.';
+
+    row.append(note);
+  }
+
+  updateMaintenanceEditorState(row);
+
+  return row;
+}
+
+function normalizeMaintenanceAccessGrants(grants) {
+  if (!Array.isArray(grants)) {
+    return [];
+  }
+
+  return grants
+    .map((grant) => {
+      const roleCode =
+        grant?.role?.code ||
+        grant?.role_code ||
+        '';
+
+      const isGlobal =
+        grant?.is_global === true ||
+        grant?.location === null ||
+        grant?.location_id === null;
+
+      let locationId = null;
+
+      if (!isGlobal) {
+        locationId = Number(
+          grant?.location?.id ??
+          grant?.location_id ??
+          0,
+        );
+
+        if (!locationId) {
+          return null;
+        }
+      }
+
+      if (!roleCode) {
+        return null;
+      }
+
+      return {
+        role_code: roleCode,
+        location_id: locationId,
+      };
+    })
+    .filter(Boolean);
+}
+
+function maintenanceGrantSignature(grants) {
+  const normalized =
+    (Array.isArray(grants) ? grants : [])
+      .map((grant) => ({
+        role_code: String(grant?.role_code || ''),
+        location_id:
+          grant?.location_id === null
+            ? null
+            : Number(grant?.location_id),
+      }))
+      .filter(
+        (grant) =>
+          Boolean(grant.role_code) &&
+          (
+            grant.location_id === null ||
+            Number.isInteger(grant.location_id)
+          ),
+      )
+      .sort((a, b) => {
+        if (
+          a.location_id === null &&
+          b.location_id !== null
+        ) {
+          return -1;
+        }
+
+        if (
+          a.location_id !== null &&
+          b.location_id === null
+        ) {
+          return 1;
+        }
+
+        if (a.location_id !== b.location_id) {
+          return (
+            Number(a.location_id || 0) -
+            Number(b.location_id || 0)
+          );
+        }
+
+        return a.role_code.localeCompare(b.role_code);
+      });
+
+  return JSON.stringify(normalized);
+}
+
+function collectMaintenanceEditorGrants(row) {
+  const globalSelect = row.querySelector(
+    '[data-access-maintenance-global]',
+  );
+
+  if (globalSelect?.value) {
+    return [
+      {
+        role_code: globalSelect.value,
+        location_id: null,
+      },
+    ];
+  }
+
+  return Array.from(
+    row.querySelectorAll(
+      '[data-access-maintenance-location]',
+    ),
+  )
+    .filter((select) => Boolean(select.value))
+    .map((select) => ({
+      role_code: select.value,
+      location_id: Number(
+        select.dataset.accessMaintenanceLocation,
+      ),
+    }));
+}
+
+function updateMaintenanceEditorState(
+  row,
+  changedSelect = null,
+) {
+  const globalSelect = row.querySelector(
+    '[data-access-maintenance-global]',
+  );
+
+  const territorialSelects = Array.from(
+    row.querySelectorAll(
+      '[data-access-maintenance-location]',
+    ),
+  );
+
+  if (!globalSelect) {
+    return;
+  }
+
+  const changedGlobal = changedSelect?.matches?.(
+    '[data-access-maintenance-global]',
+  );
+
+  const changedTerritorial = changedSelect?.matches?.(
+    '[data-access-maintenance-location]',
+  );
+
+  if (
+    changedGlobal &&
+    globalSelect.value
+  ) {
+    territorialSelects.forEach((select) => {
+      select.value = '';
+    });
+  }
+
+  if (
+    changedTerritorial &&
+    changedSelect.value
+  ) {
+    globalSelect.value = '';
+  }
+
+  const hasGlobal = Boolean(globalSelect.value);
+
+  territorialSelects.forEach((select) => {
+    select.disabled = hasGlobal;
+  });
+
+  const button = row.querySelector(
+    '[data-access-maintenance-apply]',
+  );
+
+  if (!button) {
+    return;
+  }
+
+  const nextSignature = maintenanceGrantSignature(
+    collectMaintenanceEditorGrants(row),
+  );
+
+  button.disabled =
+    nextSignature ===
+    row.dataset.originalGrantSignature;
+}
+
+function maintenanceAccessSummary(access) {
+  const grants = Array.isArray(access?.grants)
+    ? access.grants
+    : [];
+
+  if (!grants.length) {
+    return 'Sin acceso';
+  }
+
+  const globalGrant = grants.find(
+    (grant) =>
+      grant?.is_global === true ||
+      grant?.location === null,
+  );
+
+  if (globalGrant) {
+    const roleName =
+      globalGrant?.role?.name ||
+      globalGrant?.role?.code ||
+      'Administrador';
+
+    return `${roleName} · Global`;
+  }
+
+  const roleCodes = new Set();
+  const roleNames = new Map();
+
+  grants.forEach((grant) => {
+    const code = grant?.role?.code || '';
+
+    if (!code) {
+      return;
+    }
+
+    roleCodes.add(code);
+    roleNames.set(
+      code,
+      grant?.role?.name || code,
+    );
+  });
+
+  if (roleCodes.size === 1) {
+    const code = Array.from(roleCodes)[0];
+
+    return `${
+      roleNames.get(code) || code
+    } · ${grants.length} ${
+      grants.length === 1
+        ? 'ubicación'
+        : 'ubicaciones'
+    }`;
+  }
+
+  return `Mixto · ${grants.length} ubicaciones`;
+}
+
+function findUserApplicationAccess(
+  user,
+  applicationCode,
+) {
   return (
     (user.applications || []).find(
-      (application) => application.code === applicationCode,
+      (application) =>
+        application.code === applicationCode,
     ) || null
   );
 }
 
 function handleAccessEditorChange(event) {
+  const maintenanceSelect = event.target.closest(
+    [
+      '[data-access-maintenance-global]',
+      '[data-access-maintenance-location]',
+    ].join(','),
+  );
+
+  if (maintenanceSelect) {
+    const row = maintenanceSelect.closest(
+      '[data-access-maintenance-row]',
+    );
+
+    if (!row) {
+      return;
+    }
+
+    updateMaintenanceEditorState(
+      row,
+      maintenanceSelect,
+    );
+
+    return;
+  }
+
   const select = event.target.closest('[data-access-role]');
 
   if (!select) return;
@@ -741,10 +1185,35 @@ function handleAccessEditorChange(event) {
   if (!button) return;
 
   button.disabled =
-    select.disabled || select.value === select.dataset.originalRoleCode;
+    select.disabled ||
+    select.value === select.dataset.originalRoleCode;
 }
 
 async function handleAccessEditorClick(event) {
+  const maintenanceButton = event.target.closest(
+    '[data-access-maintenance-apply]',
+  );
+
+  if (
+    maintenanceButton &&
+    !maintenanceButton.disabled
+  ) {
+    const row = maintenanceButton.closest(
+      '[data-access-maintenance-row]',
+    );
+
+    if (!row) {
+      return;
+    }
+
+    await applyMaintenanceAccessChange(
+      row,
+      maintenanceButton,
+    );
+
+    return;
+  }
+
   const button = event.target.closest('[data-access-apply]');
 
   if (!button || button.disabled) return;
@@ -755,6 +1224,142 @@ async function handleAccessEditorClick(event) {
   if (!select) return;
 
   await applyAccessChange(select, button);
+}
+
+async function applyMaintenanceAccessChange(
+  row,
+  button,
+) {
+  const userId = Number(row.dataset.userId);
+
+  const applicationCode =
+    row.dataset.applicationCode ||
+    'maintenance';
+
+  if (
+    !userId ||
+    applicationCode !== 'maintenance'
+  ) {
+    return;
+  }
+
+  const grants = collectMaintenanceEditorGrants(row);
+
+  const nextSignature = maintenanceGrantSignature(grants);
+
+  const originalSignature =
+    row.dataset.originalGrantSignature ||
+    '[]';
+
+  if (nextSignature === originalSignature) {
+    return;
+  }
+
+  const user = usersById.get(userId);
+
+  const userName =
+    user?.full_name ||
+    user?.email ||
+    'este usuario';
+
+  const originalCount = Number(
+    row.dataset.originalGrantCount || 0,
+  );
+
+  let title = 'Actualizar acceso';
+
+  let message =
+    `Se actualizarán los niveles y ubicaciones de ${userName} en Mantenimiento.`;
+
+  if (
+    originalCount === 0 &&
+    grants.length > 0
+  ) {
+    title = 'Asignar acceso';
+    message =
+      `Se asignará acceso a Mantenimiento para ${userName}.`;
+  }
+
+  if (
+    originalCount > 0 &&
+    grants.length === 0
+  ) {
+    title = 'Revocar acceso';
+    message =
+      `Se revocará todo el acceso de ${userName} a Mantenimiento.`;
+  }
+
+  const accepted = await confirmAction(
+    title,
+    `${message} Las sesiones activas de la cuenta se cerrarán si existe un cambio efectivo.`,
+  );
+
+  if (!accepted) {
+    return;
+  }
+
+  clearAccessMessage();
+
+  button.disabled = true;
+  button.textContent = 'Aplicando…';
+
+  const selects = Array.from(
+    row.querySelectorAll('select'),
+  );
+
+  selects.forEach((select) => {
+    select.disabled = true;
+  });
+
+  try {
+    const payload = await apiRequest(
+      '/api/admin/users/update-access',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          user_id: userId,
+          application_code: 'maintenance',
+          grants,
+        }),
+      },
+    );
+
+    const changed = payload.data?.changed !== false;
+
+    closeAccessModal();
+
+    await notify(
+      changed
+        ? 'Acceso actualizado'
+        : 'Sin cambios',
+      changed
+        ? 'Los niveles y ubicaciones de Mantenimiento se actualizaron correctamente.'
+        : 'La cuenta ya tenía esa configuración de acceso.',
+      changed
+        ? 'success'
+        : 'info',
+    );
+
+    await loadUsers();
+  } catch (error) {
+    if (Number(error?.status) === 401) {
+      window.location.replace('/login');
+      return;
+    }
+
+    showAccessMessage(
+      error?.message ||
+        'No fue posible actualizar el acceso de Mantenimiento.',
+    );
+
+    selects.forEach((select) => {
+      select.disabled = false;
+    });
+
+    updateMaintenanceEditorState(row);
+
+    button.textContent = 'Aplicar';
+  }
 }
 
 async function applyAccessChange(select, button) {
@@ -852,6 +1457,7 @@ function clearAccessMessage() {
   accessMessage.textContent = '';
   accessMessage.hidden = true;
 }
+
 function createAccessList(applications) {
   const wrapper = document.createElement('div');
   wrapper.className = 'users-access-list';
@@ -877,8 +1483,15 @@ function createAccessList(applications) {
 
     const role = document.createElement('span');
     role.className = 'users-access__role';
-    role.textContent =
-      application.role?.name || application.role?.code || 'Sin rol';
+
+    if (application.access_model === 'location_grants') {
+      role.textContent = maintenanceAccessSummary(application);
+    } else {
+      role.textContent =
+        application.role?.name ||
+        application.role?.code ||
+        'Sin rol';
+    }
 
     item.append(applicationName, role);
     wrapper.append(item);
@@ -1011,6 +1624,7 @@ async function changeUserStatus(userId, nextStatus) {
 
   await loadUsers();
 }
+
 async function resendInvitation(userId) {
   const accepted = await confirmAction(
     'Reenviar invitación',

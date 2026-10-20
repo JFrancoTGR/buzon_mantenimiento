@@ -1035,10 +1035,10 @@ final class UserAdminService
         }
 
         if ($applicationCode === 'maintenance') {
-            throw new HttpException(
-                409,
-                'maintenance_grants_required',
-                'El acceso de Mantenimiento se administra mediante nivel y ubicación.'
+            return $this->reconcileMaintenanceAccess(
+                $userId,
+                $actorId,
+                $payload
             );
         }
 
@@ -1378,7 +1378,594 @@ final class UserAdminService
 
             throw $exception;
         }
-    }private function insertInvitedUser(
+    }
+
+    /**
+     * Reconciles the complete active Maintenance grant set for one user.
+     *
+     * Contract:
+     * - grants is required as a key.
+     * - grants = [] revokes all Maintenance access.
+     * - one Location may have at most one active Level.
+     * - Administrator is GLOBAL only.
+     * - GLOBAL and territorial grants cannot coexist.
+     * - unchanged grants are preserved.
+     * - Level changes revoke the historical grant and create a new one.
+     *
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    private function reconcileMaintenanceAccess(
+        int $userId,
+        int $actorId,
+        array $payload
+    ): array {
+        if (! array_key_exists('grants', $payload)) {
+            throw new HttpException(
+                422,
+                'missing_maintenance_grants',
+                'Debes indicar la configuración completa de accesos de Mantenimiento.'
+            );
+        }
+
+        $requestedGrants =
+        $this->normalizeMaintenanceGrants(
+            $payload['grants'],
+            true
+        );
+
+        $this->pdo->beginTransaction();
+
+        try {
+            /*
+         * Lock the user first.
+         *
+         * This serializes administrative access changes for the same
+         * account even when the user currently has no active grants.
+         */
+            $target = $this->loadUserForUpdate(
+                $userId
+            );
+
+            if ($target === null) {
+                throw new HttpException(
+                    404,
+                    'user_not_found',
+                    'El usuario no existe.'
+                );
+            }
+
+            $application =
+            $this->loadApplication(
+                'maintenance'
+            );
+
+            if ($application === null) {
+                throw new HttpException(
+                    404,
+                    'application_not_found',
+                    'La aplicación Mantenimiento no existe.'
+                );
+            }
+
+            $applicationId =
+            (int) $application['id'];
+
+            /*
+         * Revoking all access remains possible if the application is
+         * inactive. Creating new access does not.
+         */
+            if (
+                $requestedGrants !== []
+                && ! (bool) $application['is_active']
+            ) {
+                throw new HttpException(
+                    409,
+                    'maintenance_application_unavailable',
+                    'No puedes asignar acceso porque Mantenimiento está inactivo.'
+                );
+            }
+
+            /*
+         * Resolve and validate desired state.
+         *
+         * This enforces:
+         * - active role
+         * - active Location
+         * - Administrator = GLOBAL
+         * - non-Administrator = territorial
+         * - no GLOBAL + territorial combination
+         */
+            $resolved =
+            $this->resolveMaintenanceGrantDefinitions(
+                $applicationId,
+                $requestedGrants,
+                true
+            );
+
+            /*
+         * Lock current active grants.
+         */
+            $current =
+            $this->loadActiveMaintenanceGrantsForUpdate(
+                $userId,
+                $applicationId
+            );
+
+            $currentBySlot = [];
+
+            foreach ($current as $grant) {
+                $key =
+                $this->maintenanceGrantSlotKey(
+                    $grant['location_id'] !== null
+                        ? (int) $grant['location_id']
+                        : null
+                );
+
+                $currentBySlot[$key] = $grant;
+            }
+
+            $desiredBySlot = [];
+
+            foreach ($resolved as $grant) {
+                $locationId =
+                $grant['location'] !== null
+                    ? (int) $grant['location']['id']
+                    : null;
+
+                $key =
+                $this->maintenanceGrantSlotKey(
+                    $locationId
+                );
+
+                $desiredBySlot[$key] = $grant;
+            }
+
+            /*
+         * Determine which current grants must be revoked.
+         */
+            $toRevoke  = [];
+            $unchanged = 0;
+
+            foreach (
+                $currentBySlot as $key => $currentGrant
+            ) {
+                $desiredGrant =
+                $desiredBySlot[$key] ?? null;
+
+                if (
+                    $desiredGrant !== null
+                    && (int) $currentGrant['role_id']
+                    === (int) $desiredGrant['role']['id']
+                ) {
+                    $unchanged++;
+
+                    continue;
+                }
+
+                $toRevoke[] = $currentGrant;
+            }
+
+            /*
+         * Determine which desired grants must be created.
+         */
+            $toCreate = [];
+
+            foreach (
+                $desiredBySlot as $key => $desiredGrant
+            ) {
+                $currentGrant =
+                $currentBySlot[$key] ?? null;
+
+                if (
+                    $currentGrant !== null
+                    && (int) $currentGrant['role_id']
+                    === (int) $desiredGrant['role']['id']
+                ) {
+                    continue;
+                }
+
+                $toCreate[] = $desiredGrant;
+            }
+
+            /*
+         * Exact same configuration: true no-op.
+         *
+         * No history changes.
+         * No session revocation.
+         * No audit noise.
+         */
+            if (
+                $toRevoke === []
+                && $toCreate === []
+            ) {
+                $access =
+                $this->formatMaintenanceAccess(
+                    $current
+                );
+
+                $this->pdo->commit();
+
+                return [
+                    'user_id'     => $userId,
+                    'application' => [
+                        'code'         => 'maintenance',
+                        'name'         =>
+                        (string) $application['name'],
+                        'access_model' =>
+                        'location_grants',
+                    ],
+                    'access'      => $access,
+                    'changed'     => false,
+                    'changes'     => [
+                        'created'   => 0,
+                        'revoked'   => 0,
+                        'unchanged' => $unchanged,
+                    ],
+                ];
+            }
+
+            /*
+         * Revoke first.
+         *
+         * This ordering is important for:
+         * - Level changes on the same Location.
+         * - territorial -> GLOBAL promotion.
+         * - GLOBAL -> territorial downgrade.
+         *
+         * The database trigger releases active_location_key when
+         * revoked_at becomes non-null.
+         */
+            $revoke =
+            $this->pdo->prepare(
+                'UPDATE maintenance_access_grants
+                 SET
+                    revoked_by_user_id = :actor_id,
+                    revoked_at = UTC_TIMESTAMP(),
+                    revocation_reason = :reason
+                 WHERE id = :grant_id
+                   AND revoked_at IS NULL'
+            );
+
+            foreach ($toRevoke as $grant) {
+                $revoke->execute([
+                    'actor_id' => $actorId,
+                    'reason'   => 'access_reconciled',
+                    'grant_id' =>
+                    (int) $grant['grant_id'],
+                ]);
+
+                if ($revoke->rowCount() !== 1) {
+                    throw new HttpException(
+                        409,
+                        'maintenance_access_changed',
+                        'Los accesos de Mantenimiento cambiaron durante la operación. Recarga el módulo.'
+                    );
+                }
+
+                $this->audit->record(
+                    'grant.revoked',
+                    'maintenance_access_grant',
+                    (int) $grant['grant_id'],
+                    $actorId,
+                    $applicationId,
+                    [
+                        'user_id'     => $userId,
+                        'role_code'   =>
+                        (string) $grant['role_code'],
+                        'location_id' =>
+                        $grant['location_id'] !== null
+                            ? (int) $grant['location_id']
+                            : null,
+                        'source_type' =>
+                        (string) $grant['source_type'],
+                        'source_id'   =>
+                        $grant['source_id'] !== null
+                            ? (int) $grant['source_id']
+                            : null,
+                    ],
+                    [
+                        'revoked_by_user_id' =>
+                        $actorId,
+                        'revocation_reason'  =>
+                        'access_reconciled',
+                    ]
+                );
+            }
+
+            /*
+         * Create new active grants.
+         */
+            $insert =
+            $this->pdo->prepare(
+                'INSERT INTO maintenance_access_grants (
+                    user_id,
+                    application_id,
+                    role_id,
+                    location_id,
+                    source_type,
+                    source_id,
+                    granted_by_user_id,
+                    granted_at
+                 ) VALUES (
+                    :user_id,
+                    :application_id,
+                    :role_id,
+                    :location_id,
+                    :source_type,
+                    NULL,
+                    :granted_by_user_id,
+                    UTC_TIMESTAMP()
+                 )'
+            );
+
+            foreach ($toCreate as $grant) {
+                $locationId =
+                $grant['location'] !== null
+                    ? (int) $grant['location']['id']
+                    : null;
+
+                $insert->execute([
+                    'user_id'            => $userId,
+                    'application_id'     =>
+                    $applicationId,
+                    'role_id'            =>
+                    (int) $grant['role']['id'],
+                    'location_id'        =>
+                    $locationId,
+                    'source_type'        => 'manual',
+                    'granted_by_user_id' =>
+                    $actorId,
+                ]);
+
+                $grantId =
+                (int) $this->pdo->lastInsertId();
+
+                $this->audit->record(
+                    'grant.created',
+                    'maintenance_access_grant',
+                    $grantId,
+                    $actorId,
+                    $applicationId,
+                    null,
+                    [
+                        'user_id'          => $userId,
+                        'application_code' =>
+                        'maintenance',
+                        'role_code'        =>
+                        (string) $grant['role']['code'],
+                        'location_id'      =>
+                        $locationId,
+                        'source_type'      =>
+                        'manual',
+                    ]
+                );
+            }
+
+            /*
+         * Access changed effectively, therefore invalidate sessions.
+         */
+            $this->revokeSessions(
+                $userId
+            );
+
+            /*
+         * Reload authoritative active state after reconciliation.
+         */
+            $after =
+            $this->loadActiveMaintenanceGrantsForUpdate(
+                $userId,
+                $applicationId
+            );
+
+            $beforeAccess =
+            $this->formatMaintenanceAccess(
+                $current
+            );
+
+            $afterAccess =
+            $this->formatMaintenanceAccess(
+                $after
+            );
+
+            /*
+         * Aggregate audit event in addition to individual grant history.
+         */
+            $this->audit->record(
+                'user.access.reconciled',
+                'user',
+                $userId,
+                $actorId,
+                $applicationId,
+                [
+                    'application_code' =>
+                    'maintenance',
+                    'grants'           =>
+                    $beforeAccess['grants'] ?? [],
+                ],
+                [
+                    'application_code' =>
+                    'maintenance',
+                    'grants'           =>
+                    $afterAccess['grants'] ?? [],
+                ]
+            );
+
+            $this->pdo->commit();
+
+            return [
+                'user_id'     => $userId,
+                'application' => [
+                    'code'         => 'maintenance',
+                    'name'         =>
+                    (string) $application['name'],
+                    'access_model' =>
+                    'location_grants',
+                ],
+                'access'      => $afterAccess,
+                'changed'     => true,
+                'changes'     => [
+                    'created'   =>
+                    count($toCreate),
+                    'revoked'   =>
+                    count($toRevoke),
+                    'unchanged' =>
+                    $unchanged,
+                ],
+            ];
+        } catch (Throwable $exception) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            throw $exception;
+        }
+    }
+
+/**
+ * Locks and returns the user's complete active Maintenance grant set.
+ *
+ * @return array<int, array<string, mixed>>
+ */
+    private function loadActiveMaintenanceGrantsForUpdate(
+        int $userId,
+        int $applicationId
+    ): array {
+        $statement =
+        $this->pdo->prepare(
+            'SELECT
+                mag.id AS grant_id,
+                mag.role_id,
+                mag.location_id,
+                mag.source_type,
+                mag.source_id,
+                mag.granted_at,
+
+                r.code AS role_code,
+                r.name AS role_name,
+
+                l.code AS location_code,
+                l.name AS location_name,
+                l.is_active AS location_active
+
+             FROM maintenance_access_grants mag
+
+             INNER JOIN application_roles r
+                ON r.id = mag.role_id
+               AND r.application_id =
+                   mag.application_id
+
+             LEFT JOIN locations l
+                ON l.id = mag.location_id
+
+             WHERE mag.user_id = :user_id
+               AND mag.application_id =
+                   :application_id
+               AND mag.revoked_at IS NULL
+
+             ORDER BY
+                CASE
+                    WHEN mag.location_id IS NULL
+                    THEN 0
+                    ELSE 1
+                END,
+                l.sort_order,
+                l.name,
+                mag.id
+
+             FOR UPDATE'
+        );
+
+        $statement->execute([
+            'user_id'        => $userId,
+            'application_id' =>
+            $applicationId,
+        ]);
+
+        return $statement->fetchAll();
+    }
+
+/**
+ * @param array<int, array<string, mixed>> $rows
+ * @return array{
+ *   role:?array{code:string,name:string},
+ *   grants:array<int,array<string,mixed>>
+ * }
+ */
+    private function formatMaintenanceAccess(
+        array $rows
+    ): array {
+        $roles  = [];
+        $grants = [];
+
+        foreach ($rows as $row) {
+            $role = [
+                'code' =>
+                (string) $row['role_code'],
+                'name' =>
+                (string) $row['role_name'],
+            ];
+
+            $roles[$role['code']] =
+                $role;
+
+            $location = null;
+
+            if ($row['location_id'] !== null) {
+                $location = [
+                    'id'        =>
+                    (int) $row['location_id'],
+                    'code'      =>
+                    (string) $row['location_code'],
+                    'name'      =>
+                    (string) $row['location_name'],
+                    'is_active' =>
+                    (bool) $row['location_active'],
+                ];
+            }
+
+            $grants[] = [
+                'id'          =>
+                (int) $row['grant_id'],
+                'role'        =>
+                $role,
+                'location'    =>
+                $location,
+                'is_global'   =>
+                $row['location_id'] === null,
+                'source_type' =>
+                (string) $row['source_type'],
+                'source_id'   =>
+                $row['source_id'] !== null
+                    ? (int) $row['source_id']
+                    : null,
+                'granted_at'  =>
+                $row['granted_at'],
+            ];
+        }
+
+        $summaryRole = null;
+
+        if (count($roles) === 1) {
+            $summaryRole =
+                array_values($roles)[0];
+        }
+
+        return [
+            'role'   => $summaryRole,
+            'grants' => $grants,
+        ];
+    }
+
+    private function maintenanceGrantSlotKey(
+        ?int $locationId
+    ): string {
+        return $locationId === null
+            ? 'global'
+            : 'location:' . $locationId;
+    }
+
+    private function insertInvitedUser(
         string $firstName,
         string $lastName,
         string $email
@@ -1931,9 +2518,14 @@ final class UserAdminService
      */
     private function resolveMaintenanceGrantDefinitions(
         int $applicationId,
-        array $grants
+        array $grants,
+        bool $allowEmpty = false
     ): array {
         if ($grants === []) {
+            if ($allowEmpty) {
+                return [];
+            }
+
             throw new HttpException(
                 422,
                 'maintenance_grants_required',
