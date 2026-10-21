@@ -25,7 +25,7 @@ AuthorizationService::requireAnyPermission(
 
 AuthorizationService::requireAnyPermission(
     $user,
-    'ticket.assign.director'
+    'ticket.assign.approver'
 );
 
 $result = $services['authorization_requests']->create(

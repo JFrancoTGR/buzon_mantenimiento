@@ -148,33 +148,28 @@ export function hasRoleAtLocation(
 export function isReporterOnlyUser(user) {
   const grants = maintenanceGrants(user);
 
-  if (grants.length > 0) {
-    let foundRole = false;
-
-    for (const grant of grants) {
-      const roleCode =
-        typeof grant.role?.code === 'string'
-          ? grant.role.code.trim()
-          : '';
-
-      if (!roleCode) continue;
-
-      foundRole = true;
-
-      if (roleCode !== 'reporter') {
-        return false;
-      }
-    }
-
-    return foundRole;
+  if (grants.length === 0) {
+    return false;
   }
 
-  const roles = Array.isArray(user?.roles)
-    ? user.roles.filter(Boolean)
-    : [];
+  let foundRole = false;
 
-  return roles.length > 0
-    && roles.every((role) => role === 'reporter');
+  for (const grant of grants) {
+    const roleCode =
+      typeof grant.role?.code === 'string'
+        ? grant.role.code.trim()
+        : '';
+
+    if (!roleCode) continue;
+
+    foundRole = true;
+
+    if (roleCode !== 'reporter') {
+      return false;
+    }
+  }
+
+  return foundRole;
 }
 
 export function applyPermissionVisibility(

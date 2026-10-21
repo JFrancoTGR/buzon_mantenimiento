@@ -60,30 +60,9 @@ export async function getMaintenanceUser() {
     if (code) roleCodes.add(code);
   });
 
-  /*
-   * Compatibility for a single-role application payload. Maintenance
-   * normally reaches this branch only if grants are absent, but keeping
-   * it makes the adapter safe for fixtures and transitional responses.
-   */
-  const compatibilityRole =
-    typeof application.role?.code === 'string'
-      ? application.role.code.trim()
-      : '';
-
-  if (compatibilityRole) {
-    roleCodes.add(compatibilityRole);
-  }
-
   return {
     ...user,
-    access_model:
-      typeof application.access_model === 'string'
-        ? application.access_model
-        : 'single_role',
-    application_role:
-      application.role && typeof application.role === 'object'
-        ? { ...application.role }
-        : null,
+    access_model: 'location_grants',
     roles: [...roleCodes],
     permissions: Array.isArray(application.permissions)
       ? [...application.permissions]
